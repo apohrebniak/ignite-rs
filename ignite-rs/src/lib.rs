@@ -1,29 +1,11 @@
+use crate::error::{IgniteError, IgniteResult};
 use std::fmt::{Display, Formatter};
 use std::io::{Error, Read, Write};
 use std::net::TcpStream;
-use std::{convert, error, io};
+use std::{convert, io};
 
-type IgniteResult<T> = Result<T, IgniteError>;
-
-////////////////////////
-#[derive(Debug)]
-pub struct IgniteError {}
-
-impl error::Error for IgniteError {}
-
-impl Display for IgniteError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Ignite error!")
-    }
-}
-
-impl convert::From<io::Error> for IgniteError {
-    fn from(_: Error) -> Self {
-        IgniteError {}
-    }
-}
-
-/////////////////////////////////
+mod error;
+mod message;
 
 pub struct Connection {
     stream: TcpStream,
@@ -93,26 +75,6 @@ impl Connection {
             Err(err) => Err(IgniteError::from(err)),
         }
     }
-
-    // fn try_handshake(&mut self) -> IgniteResult<()> {
-    //     let mut buf = [0u8; 1024].to_vec();
-    //
-    //     let out_len = 8i32;
-    //     write_i32_le(&mut self.stream, out_len);
-    //     write_u8(&mut self.stream, (OpCode::Handshake as u8));
-    //     write_i16_le(&mut self.stream, 1i16);
-    //     write_i16_le(&mut self.stream, 2i16);
-    //     write_i16_le(&mut self.stream, 0i16);
-    //     write_u8(&mut self.stream, 2u8);
-    //     let out_len = out_len + 4;
-    //
-    //     match self.stream.flush() {
-    //         Ok(_) => {},
-    //         Err(err) => return Err(IgniteError{}),
-    //     }
-    //
-
-    // }
 }
 
 /////////////////////////////////
@@ -131,50 +93,39 @@ impl Ignite {
     }
 }
 
-// fn write_i32_le<T: Write>(writer: &mut T, value: i32) -> Result<(), io::Error> {
-//     match writer.write_all(&i32::to_le_bytes(value)) {
-//         Ok(_) => Ok(()),
-//         Err(err) => Err(err),
-//     }
-// }
-//
-// fn write_i16_le<T: Write>(writer: &mut T, value: i16) -> Result<(), io::Error> {
-//     match writer.write_all(&i16::to_le_bytes(value)) {
-//         Ok(_) => Ok(()),
-//         Err(err) => Err(err),
-//     }
-// }
-//
-// fn write_u8<T: Write>(writer: &mut T, value: u8) -> Result<(), io::Error> {
-//     match writer.write_all(&u8::to_le_bytes(value)) {
-//         Ok(_) => Ok(()),
-//         Err(err) => Err(err),
-//     }
-// }
-
 ////////////////////////
 enum OpCode {
     Handshake = 1,
 }
 
-//////////////////////////
-
-// struct ByteBuffer {
-//     data: Vec<u8>,
-//     start: usize,
-//     tail: usize,
-// }
-//
-// impl ByteBuffer {
-//
-//     fn with_size(size: u64) -> ByteBuffer {
-//         let buf = [0u8; size].to_vec();
-//         ByteBuffer {
-//             data: buf,
-//             start: 0,
-//             tail: 0
-//         }
-//     }
-//
-// }
 ////////////////////////
+
+struct ByteBuffer {
+    data: Vec<u8>,
+    ptr: usize,
+    tail: usize,
+}
+
+impl ByteBuffer {
+    fn with_capacity(size: usize) -> ByteBuffer {
+        let buf = Vec::<u8>::with_capacity(size);
+        ByteBuffer {
+            data: buf,
+            ptr: 0,
+            tail: 0,
+        }
+    }
+
+    // fn read_u8(&mut self) -> IgniteResult<u8> {
+    //     let mut slice = &mut self.in_buff[..1];
+    //     match self.stream.read_exact(slice) {
+    //         Ok(_) => {
+    //             let mut x = [0u8; 1];
+    //             x.copy_from_slice(slice);
+    //             Ok(u8::from_le_bytes(x))
+    //         }
+    //         Err(err) => Err(IgniteError::from(err)),
+    //     }
+    // }
+}
+//////////////////////
