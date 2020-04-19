@@ -34,6 +34,21 @@ impl Connection {
         }
     }
 
+    fn read_bytes(&mut self, b: &mut [u8]) -> IgniteResult<()> {
+        match self.stream.read_exact(b) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(IgniteError::from(err)),
+        }
+    }
+
+    fn send_handshake_request(&mut self) -> IgniteResult<()> {
+        // build request struct
+        // request to bytes
+        // self.send_bytes(bytes)
+        // message.read_on_success(self)
+        // return
+    }
+
     fn try_handshake(&mut self) -> IgniteResult<()> {
         let mut msg = &mut [
             0x08, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02,
