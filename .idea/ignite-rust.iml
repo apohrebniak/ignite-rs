@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="CPP_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/example/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/example/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/example/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/example/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/ignite-rs/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ignite-rs/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ignite-rs/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/ignite-rs/benches" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/example/target" />
+      <excludeFolder url="file://$MODULE_DIR$/ignite-rs/target" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
