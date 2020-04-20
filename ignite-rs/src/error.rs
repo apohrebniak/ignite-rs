@@ -5,7 +5,7 @@ use std::{convert, error, io};
 pub type IgniteResult<T> = Result<T, IgniteError>;
 
 #[derive(Debug)]
-pub struct IgniteError {}
+pub struct IgniteError {} //TODO: add from_string
 
 impl error::Error for IgniteError {}
 

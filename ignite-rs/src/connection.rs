@@ -1,6 +1,6 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::message;
-use crate::message::ResponseHeader;
+use crate::message::{Response, ResponseHeader};
 use crate::parser::Flag;
 use crate::{parser, IgniteConfiguration};
 use std::convert::TryInto;
@@ -57,12 +57,10 @@ impl Connection {
         };
 
         // read response
-
-        message::ResponseHeader::read_header(&mut self.stream).and_then(|header| {
-            match header.flag {
-                Flag::Success => Ok(()),
-                Flag::Failure => Err(IgniteError {}), //TODO: read error string
-            }
-        })
+        let header = message::ResponseHeader::read_header(&mut self.stream)?;
+        match header.flag {
+            Flag::Success => Ok(()),
+            Flag::Failure => message::HandshakeResponse::read_on_failure(&mut self.stream),
+        }
     }
 }
