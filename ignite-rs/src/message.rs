@@ -1,8 +1,15 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::parser;
-use crate::parser::{Flag, OpCode};
+use crate::parser::{read_i16, read_string, Flag, OpCode};
 use std::io::{Error, Read};
 
+pub(crate) trait Response {
+    type Success;
+    fn read_on_success<T: Read>(reader: &mut T) -> IgniteResult<Self::Success>;
+    fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<Self::Success>;
+}
+
+/// Message header
 pub(crate) struct ResponseHeader {
     pub(crate) length: i32,
     pub(crate) flag: Flag,
@@ -35,6 +42,7 @@ impl ResponseHeader {
     }
 }
 
+/// Handshake
 pub(crate) struct HandshakeRequest<'a> {
     pub major_v: i16,
     pub minor_v: i16,
@@ -65,5 +73,42 @@ impl Into<Vec<u8>> for HandshakeRequest<'_> {
         bytes.extend_from_slice(data.as_slice());
 
         bytes
+    }
+}
+
+pub(crate) struct HandshakeResponse {
+    major_v: i16,
+    minor_v: i16,
+    patch_v: i16,
+    err_msg: String,
+}
+
+impl Response for HandshakeResponse {
+    type Success = ();
+
+    fn read_on_success<T: Read>(_: &mut T) -> IgniteResult<()> {
+        Ok(())
+    }
+
+    fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<()> {
+        let major_v = read_i16(reader)?;
+        let minor_v = read_i16(reader)?;
+        let patch_v = read_i16(reader)?;
+        let err_msg = read_string(reader)?;
+
+        let resp = HandshakeResponse {
+            major_v,
+            minor_v,
+            patch_v,
+            err_msg,
+        };
+
+        Err(resp.into())
+    }
+}
+
+impl Into<IgniteError> for HandshakeResponse {
+    fn into(self) -> IgniteError {
+        IgniteError {} //TODO
     }
 }
