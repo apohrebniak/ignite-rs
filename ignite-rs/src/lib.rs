@@ -1,5 +1,9 @@
 use crate::connection::Connection;
 use crate::error::{IgniteError, IgniteResult};
+use crate::message::Response;
+use crate::message::{CacheNamesResp, ReqHeader};
+use crate::parser::OpCode::CacheGetNames;
+use crate::parser::{Flag, OpCode};
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 
@@ -25,7 +29,7 @@ pub fn new_pooled_client(conf: ClientConfig) -> IgniteResult<Client> {
 }
 
 pub trait Ignite {
-    fn get_cache_names(&self) -> IgniteResult<Vec<String>>; //TODO: &str
+    fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>; //TODO: &str
 }
 
 /// Basic Ignite Client
@@ -49,7 +53,26 @@ impl Client {
 }
 
 impl Ignite for Client {
-    fn get_cache_names(&self) -> IgniteResult<Vec<String>> {
-        unimplemented!()
+    fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
+        let header = ReqHeader {
+            length: 10,
+            op_code: OpCode::CacheGetNames as i16,
+            id: rand::random(),
+        };
+        let mut bytes: Vec<u8> = header.into();
+
+        if let Err(err) = self.conn.send_bytes(bytes.as_mut_slice()) {
+            return Err(err);
+        }
+
+        let header = message::RespHeader::read_header(&mut self.conn)?;
+        match header.flag {
+            Flag::Success => {
+                let resp: CacheNamesResp =
+                    message::CacheNamesResp::read_on_success(&mut self.conn)?;
+                Ok(resp.names)
+            }
+            Flag::Failure => Err(IgniteError {}), //TODO
+        }
     }
 }

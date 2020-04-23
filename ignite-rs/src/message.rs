@@ -1,6 +1,6 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::parser;
-use crate::parser::{read_i16, read_string, Flag, OpCode};
+use crate::parser::{read_i16, read_i32_le, read_i64_le, read_string, read_u8, Flag, OpCode};
 use std::io::{Error, Read};
 
 pub(crate) trait Response {
@@ -16,17 +16,57 @@ pub(crate) struct ReqHeader {
     pub(crate) id: i64,
 }
 
+impl Into<Vec<u8>> for ReqHeader {
+    fn into(self) -> Vec<u8> {
+        let mut data = Vec::<u8>::new();
+        data.append(&mut i32::to_le_bytes(self.length).to_vec());
+        data.append(&mut i16::to_le_bytes(self.op_code).to_vec());
+        data.append(&mut i64::to_le_bytes(self.id).to_vec());
+        data
+    }
+}
+
 /// standard response header
 pub(crate) struct RespHeader {
     pub(crate) length: i32,
     pub(crate) id: i64,
     pub(crate) flag: Flag,
-    pub(crate) err_msg: String,
+    pub(crate) err_msg: Option<String>,
+}
+
+impl RespHeader {
+    pub(crate) fn read_header<T: Read>(reader: &mut T) -> IgniteResult<RespHeader> {
+        let length = read_i32_le(reader)?;
+        if length > 0 {
+            let id = read_i64_le(reader)?;
+            let flag = read_i32_le(reader)?;
+            match flag {
+                0 => Ok(RespHeader {
+                    length,
+                    id,
+                    flag: Flag::Success,
+                    err_msg: None,
+                }),
+                _ => {
+                    // receive non-success code. reading err message
+                    let err_msg = read_string(reader)?;
+                    Ok(RespHeader {
+                        length,
+                        id,
+                        flag: Flag::Failure,
+                        err_msg: Some(err_msg),
+                    })
+                }
+            }
+        } else {
+            Err(IgniteError {}) //TODO
+        }
+    }
 }
 
 /// Get Cache Names 1050
 pub(crate) struct CacheNamesResp {
-    names: Vec<String>,
+    pub(crate) names: Vec<String>,
 }
 
 impl Response for CacheNamesResp {

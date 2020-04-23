@@ -4,6 +4,7 @@ use crate::message::{HandshakeRespHeader, Response};
 use crate::parser::Flag;
 use crate::{parser, ClientConfig};
 use std::convert::TryInto;
+use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 
@@ -28,7 +29,7 @@ impl Connection {
         }
     }
 
-    fn send_bytes(&mut self, bytes: &mut [u8]) -> IgniteResult<()> {
+    pub(crate) fn send_bytes(&mut self, bytes: &mut [u8]) -> IgniteResult<()> {
         match self.stream.get_mut().write_all(bytes) {
             Ok(_) => Ok(()),
             Err(err) => Err(IgniteError::from(err)),
@@ -58,5 +59,11 @@ impl Connection {
             1 => Ok(()),
             _ => message::HandshakeResp::read_on_failure(&mut self.stream),
         }
+    }
+}
+
+impl Read for Connection {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.stream.read(buf)
     }
 }

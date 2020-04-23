@@ -2,6 +2,7 @@ import pyignite
 
 client = pyignite.Client()
 client.connect('localhost', 10800)
+client.create_cache('my cache')
 
 # 0000   00 00 00 00 00 00 00 00 00 00 00 00 08 00 45 00
 # 0010   00 40 31 df 40 00 40 06 0a d7 7f 00 00 01 7f 00

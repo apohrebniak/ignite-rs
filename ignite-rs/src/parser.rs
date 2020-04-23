@@ -44,14 +44,6 @@ pub(crate) fn read_string<T: Read>(reader: &mut T) -> io::Result<String> {
     }
 }
 
-pub(crate) fn read_i32_le<T: Read>(reader: &mut T) -> io::Result<i32> {
-    let mut new_alloc = [0u8; 4];
-    match reader.read_exact(&mut new_alloc[..]) {
-        Ok(_) => Ok(i32::from_le_bytes(new_alloc)),
-        Err(err) => Err(err),
-    }
-}
-
 pub(crate) fn read_u8<T: Read>(reader: &mut T) -> io::Result<u8> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
@@ -64,6 +56,22 @@ pub(crate) fn read_i16<T: Read>(reader: &mut T) -> io::Result<i16> {
     let mut new_alloc = [0u8; 2];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(i16::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn read_i32_le<T: Read>(reader: &mut T) -> io::Result<i32> {
+    let mut new_alloc = [0u8; 4];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(i32::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn read_i64_le<T: Read>(reader: &mut T) -> io::Result<i64> {
+    let mut new_alloc = [0u8; 8];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(i64::from_le_bytes(new_alloc)),
         Err(err) => Err(err),
     }
 }
