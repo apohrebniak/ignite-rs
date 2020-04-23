@@ -8,18 +8,48 @@ mod error;
 mod message;
 mod parser;
 
-pub struct Ignite {
-    addr: String, //TODO: make trait like IntoConnectionInfo
+/// Ignite Client configuration
+#[derive(Clone)]
+pub struct ClientConfig {
+    pub addr: String, //TODO: make trait aka IntoIgniteAddress
 }
 
-impl Ignite {
-    pub fn new(addr: String) -> IgniteResult<Ignite> {
-        Ok(Ignite { addr })
-    }
+/// Create new Ignite client
+pub fn new_client(conf: ClientConfig) -> IgniteResult<Client> {
+    Client::new(conf)
+}
 
-    pub fn get_new_connection(&self) -> IgniteResult<Connection> {
-        Connection::new(self.addr.clone())
+/// Create new Ignite client with pooled connection
+pub fn new_pooled_client(conf: ClientConfig) -> IgniteResult<Client> {
+    unimplemented!()
+}
+
+pub trait Ignite {
+    fn get_cache_names(&self) -> IgniteResult<Vec<String>>; //TODO: &str
+}
+
+/// Basic Ignite Client
+/// Uses single blocking TCP connection
+pub struct Client {
+    conf: ClientConfig,
+    conn: Connection,
+}
+
+impl Client {
+    fn new(conf: ClientConfig) -> IgniteResult<Client> {
+        // make connection
+        match Connection::new(&conf) {
+            Ok(conn) => {
+                let client = Client { conf, conn };
+                Ok(client)
+            }
+            Err(err) => Err(err),
+        }
     }
 }
 
-pub struct IgniteConfiguration {}
+impl Ignite for Client {
+    fn get_cache_names(&self) -> IgniteResult<Vec<String>> {
+        unimplemented!()
+    }
+}

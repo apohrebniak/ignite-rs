@@ -1,8 +1,8 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::message;
-use crate::message::{Response, HandshakeRespHeader};
+use crate::message::{HandshakeRespHeader, Response};
 use crate::parser::Flag;
-use crate::{parser, IgniteConfiguration};
+use crate::{parser, ClientConfig};
 use std::convert::TryInto;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
@@ -11,18 +11,14 @@ const DEFAULT_BUFFER_SIZE_BYTES: usize = 1024;
 
 pub struct Connection {
     stream: BufReader<TcpStream>,
-    config: IgniteConfiguration,
 }
 
 impl Connection {
-    pub(crate) fn new(addr: String) -> IgniteResult<Connection> {
-        match TcpStream::connect(addr) {
+    pub(crate) fn new(conf: &ClientConfig) -> IgniteResult<Connection> {
+        match TcpStream::connect(&conf.addr) {
             Ok(stream) => {
                 let mut stream = BufReader::with_capacity(DEFAULT_BUFFER_SIZE_BYTES, stream);
-                let mut conn = Connection {
-                    stream,
-                    config: IgniteConfiguration {},
-                };
+                let mut conn = Connection { stream };
                 match conn.try_handshake() {
                     Ok(_) => Ok(conn),
                     Err(err) => Err(err),

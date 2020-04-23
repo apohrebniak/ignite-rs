@@ -1,11 +1,8 @@
-use ignite_rs::Ignite;
+use ignite_rs::{Client, ClientConfig};
 
 fn main() {
-    let ignite = Ignite::new(String::from("localhost:10800")).unwrap();
-    let conn = ignite.get_new_connection();
-
-    if let Ok(c) = conn {
-        println!("Connection established!");
-        let x = c;
-    }
+    let client_config = ClientConfig {
+        addr: String::from("localhost:10800"),
+    };
+    let ignite = ignite_rs::new_client(client_config).unwrap();
 }

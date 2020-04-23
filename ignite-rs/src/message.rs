@@ -42,14 +42,13 @@ impl Response for CacheNamesResp {
             names.push(n);
         }
 
-        Ok(CacheNamesResp{names})
+        Ok(CacheNamesResp { names })
     }
 
     fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<Self::Success> {
         unimplemented!()
     }
 }
-
 
 ////////// HANDSHAKE
 
