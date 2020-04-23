@@ -9,26 +9,70 @@ pub(crate) trait Response {
     fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<Self::Success>;
 }
 
-/// Message header
-pub(crate) struct ResponseHeader {
+/// standard request header
+pub(crate) struct ReqHeader {
     pub(crate) length: i32,
-    pub(crate) flag: Flag,
+    pub(crate) op_code: i16,
+    pub(crate) id: i64,
 }
 
-impl ResponseHeader {
-    pub(crate) fn read_header<T: Read>(reader: &mut T) -> IgniteResult<ResponseHeader> {
+/// standard response header
+pub(crate) struct RespHeader {
+    pub(crate) length: i32,
+    pub(crate) id: i64,
+    pub(crate) flag: Flag,
+    pub(crate) err_msg: String,
+}
+
+/// Get Cache Names 1050
+pub(crate) struct CacheNamesResp {
+    names: Vec<String>,
+}
+
+impl Response for CacheNamesResp {
+    type Success = Self;
+
+    fn read_on_success<T: Read>(reader: &mut T) -> IgniteResult<Self::Success> {
+        // cache count
+        let count = parser::read_i32_le(reader)?;
+
+        let mut names = Vec::<String>::new();
+        for _ in 0..count {
+            let n = parser::read_string(reader)?;
+            names.push(n);
+        }
+
+        Ok(CacheNamesResp{names})
+    }
+
+    fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<Self::Success> {
+        unimplemented!()
+    }
+}
+
+
+////////// HANDSHAKE
+
+/// Handshake response header
+pub(crate) struct HandshakeRespHeader {
+    pub(crate) length: i32,
+    pub(crate) flag: u8,
+}
+
+impl HandshakeRespHeader {
+    pub(crate) fn read_header<T: Read>(reader: &mut T) -> IgniteResult<HandshakeRespHeader> {
         match parser::read_i32_le(reader) {
             Ok(len) => {
                 if len > 0 {
                     match parser::read_u8(reader) {
                         Ok(flag) => match flag {
-                            1 => Ok(ResponseHeader {
+                            1 => Ok(HandshakeRespHeader {
                                 length: len,
-                                flag: Flag::Success,
+                                flag: 1,
                             }),
-                            _ => Ok(ResponseHeader {
+                            _ => Ok(HandshakeRespHeader {
                                 length: len,
-                                flag: Flag::Failure,
+                                flag: 0,
                             }),
                         },
                         Err(err) => Err(IgniteError::from(err)),
@@ -42,8 +86,8 @@ impl ResponseHeader {
     }
 }
 
-/// Handshake
-pub(crate) struct HandshakeRequest<'a> {
+/// Handshake request
+pub(crate) struct HandshakeReq<'a> {
     pub major_v: i16,
     pub minor_v: i16,
     pub patch_v: i16,
@@ -51,7 +95,7 @@ pub(crate) struct HandshakeRequest<'a> {
     pub password: Option<&'a str>,
 }
 
-impl Into<Vec<u8>> for HandshakeRequest<'_> {
+impl Into<Vec<u8>> for HandshakeReq<'_> {
     fn into(self) -> Vec<u8> {
         let mut data = Vec::<u8>::new();
         data.push(OpCode::Handshake as u8);
@@ -76,14 +120,15 @@ impl Into<Vec<u8>> for HandshakeRequest<'_> {
     }
 }
 
-pub(crate) struct HandshakeResponse {
+/// handshake request
+pub(crate) struct HandshakeResp {
     major_v: i16,
     minor_v: i16,
     patch_v: i16,
     err_msg: String,
 }
 
-impl Response for HandshakeResponse {
+impl Response for HandshakeResp {
     type Success = ();
 
     fn read_on_success<T: Read>(_: &mut T) -> IgniteResult<()> {
@@ -96,7 +141,7 @@ impl Response for HandshakeResponse {
         let patch_v = read_i16(reader)?;
         let err_msg = read_string(reader)?;
 
-        let resp = HandshakeResponse {
+        let resp = HandshakeResp {
             major_v,
             minor_v,
             patch_v,
@@ -107,7 +152,7 @@ impl Response for HandshakeResponse {
     }
 }
 
-impl Into<IgniteError> for HandshakeResponse {
+impl Into<IgniteError> for HandshakeResp {
     fn into(self) -> IgniteError {
         IgniteError {} //TODO
     }

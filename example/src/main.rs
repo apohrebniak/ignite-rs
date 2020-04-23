@@ -4,7 +4,8 @@ fn main() {
     let ignite = Ignite::new(String::from("localhost:10800")).unwrap();
     let conn = ignite.get_new_connection();
 
-    if let Ok(_) = conn {
-        println!("Connection established!")
+    if let Ok(c) = conn {
+        println!("Connection established!");
+        let x = c;
     }
 }

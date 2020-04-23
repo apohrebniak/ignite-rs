@@ -4,12 +4,19 @@ use std::io::{Error, ErrorKind, Read};
 use std::string::FromUtf8Error;
 
 pub(crate) enum Flag {
-    Success = 1,
-    Failure = 0,
+    Success = 0,
+    Failure = 1,
 }
 
 pub(crate) enum OpCode {
     Handshake = 1,
+    CacheGetNames = 1050,
+    CacheCreateWithName = 1051,
+    CacheGetOrCreateWithName = 1052,
+    CacheCreateWithConfiguration = 1053,
+    CacheGetOrCreateWithConfiguration = 1054,
+    CacheGetConfiguration = 1055,
+    CacheDestroy = 1056,
 }
 
 #[derive(PartialOrd, PartialEq)]

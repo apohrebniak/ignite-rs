@@ -1,6 +1,6 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::message;
-use crate::message::{Response, ResponseHeader};
+use crate::message::{Response, HandshakeRespHeader};
 use crate::parser::Flag;
 use crate::{parser, IgniteConfiguration};
 use std::convert::TryInto;
@@ -41,7 +41,7 @@ impl Connection {
 
     fn try_handshake(&mut self) -> IgniteResult<()> {
         // build request struct
-        let req = message::HandshakeRequest {
+        let req = message::HandshakeReq {
             major_v: 1,
             minor_v: 2,
             patch_v: 0,
@@ -57,10 +57,10 @@ impl Connection {
         };
 
         // read response
-        let header = message::ResponseHeader::read_header(&mut self.stream)?;
+        let header = message::HandshakeRespHeader::read_header(&mut self.stream)?;
         match header.flag {
-            Flag::Success => Ok(()),
-            Flag::Failure => message::HandshakeResponse::read_on_failure(&mut self.stream),
+            1 => Ok(()),
+            _ => message::HandshakeResp::read_on_failure(&mut self.stream),
         }
     }
 }
