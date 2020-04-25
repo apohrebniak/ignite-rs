@@ -6,7 +6,6 @@ use std::io::{Error, Read};
 pub(crate) trait Response {
     type Success;
     fn read_on_success<T: Read>(reader: &mut T) -> IgniteResult<Self::Success>;
-    fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<Self::Success>;
 }
 
 /// standard request header
@@ -83,10 +82,6 @@ impl Response for CacheNamesResp {
         }
 
         Ok(CacheNamesResp { names })
-    }
-
-    fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<Self::Success> {
-        unimplemented!()
     }
 }
 
@@ -167,14 +162,8 @@ pub(crate) struct HandshakeResp {
     err_msg: String,
 }
 
-impl Response for HandshakeResp {
-    type Success = ();
-
-    fn read_on_success<T: Read>(_: &mut T) -> IgniteResult<()> {
-        Ok(())
-    }
-
-    fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<()> {
+impl HandshakeResp {
+    pub(crate) fn read_on_failure<T: Read>(reader: &mut T) -> IgniteResult<()> {
         let major_v = read_i16(reader)?;
         let minor_v = read_i16(reader)?;
         let patch_v = read_i16(reader)?;
