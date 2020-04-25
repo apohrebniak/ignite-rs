@@ -1,7 +1,6 @@
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::Error as IoError;
-use std::{convert, error, io};
+use std::{convert, error};
 
 pub type IgniteResult<T> = Result<T, IgniteError>;
 

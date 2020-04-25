@@ -2,10 +2,7 @@ use crate::connection::Connection;
 use crate::error::{IgniteError, IgniteResult};
 use crate::message::Response;
 use crate::message::{CacheNamesResp, ReqHeader};
-use crate::parser::OpCode::CacheGetNames;
 use crate::parser::{Flag, OpCode};
-use std::io::{BufReader, Read, Write};
-use std::net::TcpStream;
 
 mod connection;
 mod error;
@@ -23,10 +20,10 @@ pub fn new_client(conf: ClientConfig) -> IgniteResult<Client> {
     Client::new(conf)
 }
 
-/// Create new Ignite client with pooled connection
-pub fn new_pooled_client(conf: ClientConfig) -> IgniteResult<Client> {
-    unimplemented!()
-}
+// /// Create new Ignite client with pooled connection
+// pub fn new_pooled_client(conf: ClientConfig) -> IgniteResult<Client> {
+//     unimplemented!()
+// }
 
 pub trait Ignite {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>; //TODO: &str
@@ -35,7 +32,7 @@ pub trait Ignite {
 /// Basic Ignite Client
 /// Uses single blocking TCP connection
 pub struct Client {
-    conf: ClientConfig,
+    _conf: ClientConfig,
     conn: Connection,
 }
 
@@ -44,7 +41,7 @@ impl Client {
         // make connection
         match Connection::new(&conf) {
             Ok(conn) => {
-                let client = Client { conf, conn };
+                let client = Client { _conf: conf, conn };
                 Ok(client)
             }
             Err(err) => Err(err),

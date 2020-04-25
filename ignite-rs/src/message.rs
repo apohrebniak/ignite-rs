@@ -1,7 +1,7 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::parser;
-use crate::parser::{read_i16, read_i32_le, read_i64_le, read_string, read_u8, Flag, OpCode};
-use std::io::{Error, Read};
+use crate::parser::{read_i16, read_i32_le, read_i64_le, read_string, Flag, OpCode};
+use std::io::Read;
 
 pub(crate) trait Response {
     type Success;
@@ -27,8 +27,8 @@ impl Into<Vec<u8>> for ReqHeader {
 
 /// standard response header
 pub(crate) struct RespHeader {
-    pub(crate) length: i32,
-    pub(crate) id: i64,
+    pub(crate) _length: i32,
+    pub(crate) _id: i64,
     pub(crate) flag: Flag,
     pub(crate) err_msg: Option<String>,
 }
@@ -41,8 +41,8 @@ impl RespHeader {
             let flag = read_i32_le(reader)?;
             match flag {
                 0 => Ok(RespHeader {
-                    length,
-                    id,
+                    _length: length,
+                    _id: id,
                     flag: Flag::Success,
                     err_msg: None,
                 }),
@@ -50,8 +50,8 @@ impl RespHeader {
                     // receive non-success code. reading err message
                     let err_msg = read_string(reader)?;
                     Ok(RespHeader {
-                        length,
-                        id,
+                        _length: length,
+                        _id: id,
                         flag: Flag::Failure,
                         err_msg: Some(err_msg),
                     })
@@ -91,7 +91,7 @@ impl Response for CacheNamesResp {
 
 /// Handshake response header
 pub(crate) struct HandshakeRespHeader {
-    pub(crate) length: i32,
+    pub(crate) _length: i32,
     pub(crate) flag: u8,
 }
 
@@ -103,20 +103,20 @@ impl HandshakeRespHeader {
                     match parser::read_u8(reader) {
                         Ok(flag) => match flag {
                             1 => Ok(HandshakeRespHeader {
-                                length: len,
+                                _length: len,
                                 flag: 1,
                             }),
                             _ => Ok(HandshakeRespHeader {
-                                length: len,
+                                _length: len,
                                 flag: 0,
                             }),
                         },
                         Err(err) => Err(IgniteError::from(err)),
                     }
                 } else {
-                    return Err(IgniteError {
+                    Err(IgniteError {
                         desc: "Cannot read handshake response header!".to_owned(),
-                    });
+                    })
                 }
             }
             Err(err) => Err(IgniteError::from(err)),

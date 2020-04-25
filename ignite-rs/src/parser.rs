@@ -1,7 +1,5 @@
-use crate::error::IgniteError;
 use std::io;
-use std::io::{Error, ErrorKind, Read};
-use std::string::FromUtf8Error;
+use std::io::{ErrorKind, Read};
 
 pub(crate) enum Flag {
     Success = 0,

@@ -1,9 +1,6 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::message;
-use crate::message::{HandshakeRespHeader, Response};
-use crate::parser::Flag;
-use crate::{parser, ClientConfig};
-use std::convert::TryInto;
+use crate::ClientConfig;
 use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
@@ -18,7 +15,7 @@ impl Connection {
     pub(crate) fn new(conf: &ClientConfig) -> IgniteResult<Connection> {
         match TcpStream::connect(&conf.addr) {
             Ok(stream) => {
-                let mut stream = BufReader::with_capacity(DEFAULT_BUFFER_SIZE_BYTES, stream);
+                let stream = BufReader::with_capacity(DEFAULT_BUFFER_SIZE_BYTES, stream);
                 let mut conn = Connection { stream };
                 match conn.try_handshake() {
                     Ok(_) => Ok(conn),

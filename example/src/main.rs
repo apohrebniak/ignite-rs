@@ -1,4 +1,4 @@
-use ignite_rs::{Client, ClientConfig, Ignite};
+use ignite_rs::{ClientConfig, Ignite};
 
 fn main() {
     let client_config = ClientConfig {
