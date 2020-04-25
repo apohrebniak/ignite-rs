@@ -57,7 +57,7 @@ impl Ignite for Client {
         let header = ReqHeader {
             length: 10,
             op_code: OpCode::CacheGetNames as i16,
-            id: rand::random(),
+            id: 0i64, //TODO: could be left as is?
         };
         let mut bytes: Vec<u8> = header.into();
 
@@ -72,7 +72,7 @@ impl Ignite for Client {
                     message::CacheNamesResp::read_on_success(&mut self.conn)?;
                 Ok(resp.names)
             }
-            Flag::Failure => Err(IgniteError {}), //TODO
+            Flag::Failure => Err(IgniteError::from(header.err_msg)), //TODO
         }
     }
 }

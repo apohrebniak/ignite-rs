@@ -58,7 +58,9 @@ impl RespHeader {
                 }
             }
         } else {
-            Err(IgniteError {}) //TODO
+            Err(IgniteError {
+                desc: "Cannot read response header!".to_owned(),
+            })
         }
     }
 }
@@ -112,7 +114,9 @@ impl HandshakeRespHeader {
                         Err(err) => Err(IgniteError::from(err)),
                     }
                 } else {
-                    return Err(IgniteError {});
+                    return Err(IgniteError {
+                        desc: "Cannot read handshake response header!".to_owned(),
+                    });
                 }
             }
             Err(err) => Err(IgniteError::from(err)),
@@ -182,6 +186,11 @@ impl HandshakeResp {
 
 impl Into<IgniteError> for HandshakeResp {
     fn into(self) -> IgniteError {
-        IgniteError {} //TODO
+        IgniteError {
+            desc: format!(
+                "Handshake error: version: {}.{}.{} err: {}",
+                self.major_v, self.minor_v, self.patch_v, self.err_msg
+            ),
+        }
     }
 }
