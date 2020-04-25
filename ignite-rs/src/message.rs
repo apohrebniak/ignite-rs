@@ -5,7 +5,7 @@ use std::io::Read;
 
 pub(crate) trait Response {
     type Success;
-    fn read_on_success<T: Read>(reader: &mut T) -> IgniteResult<Self::Success>;
+    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self::Success>;
 }
 
 /// standard request header
@@ -73,7 +73,7 @@ pub(crate) struct CacheNamesResp {
 impl Response for CacheNamesResp {
     type Success = Self;
 
-    fn read_on_success<T: Read>(reader: &mut T) -> IgniteResult<Self::Success> {
+    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self::Success> {
         // cache count
         let count = parser::read_i32_le(reader)?;
 
@@ -96,7 +96,7 @@ pub(crate) struct HandshakeRespHeader {
 }
 
 impl HandshakeRespHeader {
-    pub(crate) fn read_header<T: Read>(reader: &mut T) -> IgniteResult<HandshakeRespHeader> {
+    pub(crate) fn read_header(reader: &mut impl Read) -> IgniteResult<HandshakeRespHeader> {
         match parser::read_i32_le(reader) {
             Ok(len) => {
                 if len > 0 {

@@ -1,8 +1,8 @@
 use crate::connection::Connection;
-use crate::error::{IgniteError, IgniteResult};
+use crate::error::IgniteResult;
+use crate::message::CacheNamesResp;
 use crate::message::Response;
-use crate::message::{CacheNamesResp, ReqHeader};
-use crate::parser::{Flag, OpCode};
+use crate::parser::OpCode;
 
 mod connection;
 mod error;
@@ -26,7 +26,8 @@ pub fn new_client(conf: ClientConfig) -> IgniteResult<Client> {
 // }
 
 pub trait Ignite {
-    fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>; //TODO: &str
+    fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>;
+    fn create_cache(&mut self, name: &str) -> IgniteResult<()>;
 }
 
 /// Basic Ignite Client
@@ -51,25 +52,13 @@ impl Client {
 
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
-        let header = ReqHeader {
-            length: 10,
-            op_code: OpCode::CacheGetNames as i16,
-            id: 0i64, //TODO: could be left as is?
-        };
-        let mut bytes: Vec<u8> = header.into();
+        self.conn
+            .send_header(OpCode::CacheGetNames)
+            .and_then(|_| message::CacheNamesResp::read_on_success(&mut self.conn))
+            .map(|resp: CacheNamesResp| resp.names)
+    }
 
-        if let Err(err) = self.conn.send_bytes(bytes.as_mut_slice()) {
-            return Err(err);
-        }
-
-        let header = message::RespHeader::read_header(&mut self.conn)?;
-        match header.flag {
-            Flag::Success => {
-                let resp: CacheNamesResp =
-                    message::CacheNamesResp::read_on_success(&mut self.conn)?;
-                Ok(resp.names)
-            }
-            Flag::Failure => Err(IgniteError::from(header.err_msg)), //TODO
-        }
+    fn create_cache(&mut self, name: &str) -> IgniteResult<()> {
+        self.conn.send_message(OpCode::CacheCreateWithName, name)
     }
 }

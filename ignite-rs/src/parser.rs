@@ -23,6 +23,16 @@ enum TypeCode {
     String = 9,
 }
 
+pub(crate) trait IntoIgniteBytes {
+    fn into_bytes(self) -> Vec<u8>;
+}
+
+impl IntoIgniteBytes for &str {
+    fn into_bytes(self) -> Vec<u8> {
+        marshall_string(self)
+    }
+}
+
 pub(crate) fn read_string<T: Read>(reader: &mut T) -> io::Result<String> {
     let type_code = read_u8(reader)?;
 
@@ -40,6 +50,15 @@ pub(crate) fn read_string<T: Read>(reader: &mut T) -> io::Result<String> {
         },
         Err(err) => Err(err),
     }
+}
+
+pub(crate) fn marshall_string(value: &str) -> Vec<u8> {
+    let value_bytes = value.as_bytes();
+    let mut bytes = Vec::<u8>::new();
+    bytes.push(TypeCode::String as u8);
+    bytes.append(&mut i32::to_le_bytes(value_bytes.len() as i32).to_vec());
+    bytes.extend_from_slice(&value_bytes);
+    bytes
 }
 
 pub(crate) fn read_u8<T: Read>(reader: &mut T) -> io::Result<u8> {
