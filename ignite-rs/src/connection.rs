@@ -2,7 +2,7 @@ use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 
-use crate::api::{Flag, OpCode, ReqHeader};
+use crate::api::Flag;
 use crate::error::{IgniteError, IgniteResult};
 use crate::parser::IntoIgniteBytes;
 use crate::{api, handshake, ClientConfig};
@@ -36,43 +36,9 @@ impl Connection {
         }
     }
 
-    /// sends message that contains only header and no body
-    pub(crate) fn send_header(&mut self, op_code: OpCode) -> IgniteResult<()> {
-        let req_header = ReqHeader {
-            length: 10i32, // 10 bytes for header fields
-            op_code: op_code as i16,
-            id: 0i64, //TODO: could be left as is?
-        };
-
-        let mut bytes: Vec<u8> = req_header.into();
-
-        self.send_request(bytes.as_mut_slice())
-    }
-
-    /// sends message with header
-    pub(crate) fn send_message(
-        &mut self,
-        op_code: OpCode,
-        data: impl IntoIgniteBytes,
-    ) -> IgniteResult<()> {
-        let mut data_bytes = data.into_bytes();
-        let req_header = ReqHeader {
-            length: data_bytes.len() as i32 + 10i32, // 10 bytes for header fields
-            op_code: op_code as i16,
-            id: 0i64, //TODO: could be left as is?
-        };
-
-        //combine with header
-        let mut bytes: Vec<u8> = req_header.into();
-        bytes.append(&mut data_bytes);
-
-        self.send_request(bytes.as_mut_slice())
-    }
-
-    /// sends bytes and reads the response header
-    fn send_request(&mut self, bytes: &mut [u8]) -> IgniteResult<()> {
+    pub(crate) fn send_message(&mut self, data: impl IntoIgniteBytes) -> IgniteResult<()> {
         //send request
-        if let Err(err) = self.send_bytes(bytes) {
+        if let Err(err) = self.send_bytes(data.into_bytes().as_mut_slice()) {
             return Err(err);
         }
 

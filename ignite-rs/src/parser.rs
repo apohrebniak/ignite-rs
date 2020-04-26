@@ -1,15 +1,26 @@
-use crate::api::TypeCode;
+use crate::api::{OpCode, TypeCode};
 use std::io;
 use std::io::{ErrorKind, Read};
 
+const REQ_HEADER_SIZE_BYTES: i32 = 10;
+
 pub(crate) trait IntoIgniteBytes {
     fn into_bytes(self) -> Vec<u8>;
+    fn append_header(op_code: OpCode, data: &mut Vec<u8>) -> Vec<u8> {
+        //create header
+        let mut bytes = new_req_header_bytes(data.len(), op_code);
+        //combine with payload
+        bytes.append(data);
+        bytes
+    }
 }
 
-impl IntoIgniteBytes for &str {
-    fn into_bytes(self) -> Vec<u8> {
-        marshall_string(self)
-    }
+pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: OpCode) -> Vec<u8> {
+    let mut data = Vec::<u8>::new();
+    data.append(&mut i32::to_le_bytes(payload_len as i32 + REQ_HEADER_SIZE_BYTES).to_vec());
+    data.append(&mut i16::to_le_bytes(op_code as i16).to_vec());
+    data.append(&mut i64::to_le_bytes(0).to_vec()); //TODO: do smth with id
+    data
 }
 
 pub(crate) fn read_string<T: Read>(reader: &mut T) -> io::Result<String> {

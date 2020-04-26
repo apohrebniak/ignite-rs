@@ -1,4 +1,5 @@
-use crate::api::{cache_config, OpCode, Response};
+use crate::api::cache_config::{CacheCreateWithNameReq, CacheGetNamesReq, CacheGetNamesResp};
+use crate::api::Response;
 use crate::connection::Connection;
 use crate::error::IgniteResult;
 
@@ -54,12 +55,13 @@ impl Client {
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
         self.conn
-            .send_header(OpCode::CacheGetNames)
-            .and_then(|_| cache_config::CacheNamesResp::read_on_success(&mut self.conn))
-            .map(|resp: cache_config::CacheNamesResp| resp.names)
+            .send_message(CacheGetNamesReq {})
+            .and_then(|_| CacheGetNamesResp::read_on_success(&mut self.conn))
+            .map(|resp: CacheGetNamesResp| resp.names)
     }
 
     fn create_cache(&mut self, name: &str) -> IgniteResult<()> {
-        self.conn.send_message(OpCode::CacheCreateWithName, name)
+        let req = CacheCreateWithNameReq::from(name);
+        self.conn.send_message(req)
     }
 }

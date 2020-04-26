@@ -32,23 +32,6 @@ pub(crate) trait Response {
     fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self::Success>;
 }
 
-/// standard request header
-pub(crate) struct ReqHeader {
-    pub(crate) length: i32,
-    pub(crate) op_code: i16,
-    pub(crate) id: i64,
-}
-
-impl Into<Vec<u8>> for ReqHeader {
-    fn into(self) -> Vec<u8> {
-        let mut data = Vec::<u8>::new();
-        data.append(&mut i32::to_le_bytes(self.length).to_vec());
-        data.append(&mut i16::to_le_bytes(self.op_code).to_vec());
-        data.append(&mut i64::to_le_bytes(self.id).to_vec());
-        data
-    }
-}
-
 /// standard response header
 pub(crate) struct RespHeader {
     pub(crate) _length: i32,
