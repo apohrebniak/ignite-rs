@@ -8,6 +8,7 @@ mod connection;
 mod error;
 mod message;
 mod parser;
+mod utils;
 
 /// Ignite Client configuration
 #[derive(Clone)]
