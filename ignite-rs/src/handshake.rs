@@ -1,93 +1,10 @@
-use crate::error::{IgniteError, IgniteResult};
-use crate::parser;
-use crate::parser::{read_i16, read_i32_le, read_i64_le, read_string, Flag, OpCode};
+use std::convert::Into;
 use std::io::Read;
 
-pub(crate) trait Response {
-    type Success;
-    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self::Success>;
-}
-
-/// standard request header
-pub(crate) struct ReqHeader {
-    pub(crate) length: i32,
-    pub(crate) op_code: i16,
-    pub(crate) id: i64,
-}
-
-impl Into<Vec<u8>> for ReqHeader {
-    fn into(self) -> Vec<u8> {
-        let mut data = Vec::<u8>::new();
-        data.append(&mut i32::to_le_bytes(self.length).to_vec());
-        data.append(&mut i16::to_le_bytes(self.op_code).to_vec());
-        data.append(&mut i64::to_le_bytes(self.id).to_vec());
-        data
-    }
-}
-
-/// standard response header
-pub(crate) struct RespHeader {
-    pub(crate) _length: i32,
-    pub(crate) _id: i64,
-    pub(crate) flag: Flag,
-    pub(crate) err_msg: Option<String>,
-}
-
-impl RespHeader {
-    pub(crate) fn read_header<T: Read>(reader: &mut T) -> IgniteResult<RespHeader> {
-        let length = read_i32_le(reader)?;
-        if length > 0 {
-            let id = read_i64_le(reader)?;
-            let flag = read_i32_le(reader)?;
-            match flag {
-                0 => Ok(RespHeader {
-                    _length: length,
-                    _id: id,
-                    flag: Flag::Success,
-                    err_msg: None,
-                }),
-                _ => {
-                    // receive non-success code. reading err message
-                    let err_msg = read_string(reader)?;
-                    Ok(RespHeader {
-                        _length: length,
-                        _id: id,
-                        flag: Flag::Failure,
-                        err_msg: Some(err_msg),
-                    })
-                }
-            }
-        } else {
-            Err(IgniteError {
-                desc: "Cannot read response header!".to_owned(),
-            })
-        }
-    }
-}
-
-/// Get Cache Names 1050
-pub(crate) struct CacheNamesResp {
-    pub(crate) names: Vec<String>,
-}
-
-impl Response for CacheNamesResp {
-    type Success = Self;
-
-    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self::Success> {
-        // cache count
-        let count = parser::read_i32_le(reader)?;
-
-        let mut names = Vec::<String>::new();
-        for _ in 0..count {
-            let n = parser::read_string(reader)?;
-            names.push(n);
-        }
-
-        Ok(CacheNamesResp { names })
-    }
-}
-
-////////// HANDSHAKE
+use crate::api::OpCode;
+use crate::error::{IgniteError, IgniteResult};
+use crate::parser;
+use crate::parser::{read_i16, read_string};
 
 /// Handshake response header
 pub(crate) struct HandshakeRespHeader {

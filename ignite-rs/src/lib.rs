@@ -1,12 +1,11 @@
+use crate::api::{cache_config, OpCode, Response};
 use crate::connection::Connection;
 use crate::error::IgniteResult;
-use crate::message::CacheNamesResp;
-use crate::message::Response;
-use crate::parser::OpCode;
 
+mod api;
 mod connection;
 mod error;
-mod message;
+mod handshake;
 mod parser;
 mod utils;
 
@@ -51,12 +50,13 @@ impl Client {
     }
 }
 
+//TODO: consider move generic logic when pooled client developments starts
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
         self.conn
             .send_header(OpCode::CacheGetNames)
-            .and_then(|_| message::CacheNamesResp::read_on_success(&mut self.conn))
-            .map(|resp: CacheNamesResp| resp.names)
+            .and_then(|_| cache_config::CacheNamesResp::read_on_success(&mut self.conn))
+            .map(|resp: cache_config::CacheNamesResp| resp.names)
     }
 
     fn create_cache(&mut self, name: &str) -> IgniteResult<()> {

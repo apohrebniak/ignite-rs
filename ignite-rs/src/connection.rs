@@ -1,11 +1,11 @@
-use crate::error::{IgniteError, IgniteResult};
-use crate::message;
-use crate::message::ReqHeader;
-use crate::parser::{Flag, IntoIgniteBytes, OpCode};
-use crate::ClientConfig;
 use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
+
+use crate::api::{Flag, OpCode, ReqHeader};
+use crate::error::{IgniteError, IgniteResult};
+use crate::parser::IntoIgniteBytes;
+use crate::{api, handshake, ClientConfig};
 
 const DEFAULT_BUFFER_SIZE_BYTES: usize = 1024;
 
@@ -77,7 +77,7 @@ impl Connection {
         }
 
         //read response
-        let resp_header = message::RespHeader::read_header(self)?;
+        let resp_header = api::RespHeader::read_header(self)?;
         match resp_header.flag {
             Flag::Success => Ok(()),
             Flag::Failure => Err(IgniteError::from(resp_header.err_msg)),
@@ -86,7 +86,7 @@ impl Connection {
 
     fn try_handshake(&mut self) -> IgniteResult<()> {
         // build request struct
-        let req = message::HandshakeReq {
+        let req = handshake::HandshakeReq {
             major_v: 1,
             minor_v: 2,
             patch_v: 0,
@@ -102,10 +102,10 @@ impl Connection {
         };
 
         // read response
-        let header = message::HandshakeRespHeader::read_header(&mut self.stream)?;
+        let header = handshake::HandshakeRespHeader::read_header(&mut self.stream)?;
         match header.flag {
             1 => Ok(()),
-            _ => message::HandshakeResp::read_on_failure(&mut self.stream),
+            _ => handshake::HandshakeResp::read_on_failure(&mut self.stream),
         }
     }
 }
