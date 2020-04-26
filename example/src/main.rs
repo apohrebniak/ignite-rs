@@ -6,6 +6,10 @@ fn main() {
     };
     let mut ignite = ignite_rs::new_client(client_config).unwrap();
 
+    if let Err(err) = ignite.destroy_cache("my_new_cache!") {
+        println!("{:?}", err)
+    }
+
     if let Err(err) = ignite.create_cache("my_new_cache!") {
         println!("{:?}", err)
     }

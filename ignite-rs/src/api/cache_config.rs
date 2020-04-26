@@ -4,6 +4,7 @@ use crate::api::{OpCode, Response};
 use crate::error::IgniteResult;
 use crate::parser;
 use crate::parser::{marshall_string, new_req_header_bytes, IntoIgniteBytes};
+use crate::utils::string_to_java_hashcode;
 
 /// Cache Get Names 1050
 pub(crate) struct CacheGetNamesReq {}
@@ -50,5 +51,23 @@ impl IntoIgniteBytes for CacheCreateWithNameReq<'_> {
     fn into_bytes(self) -> Vec<u8> {
         let mut payload = marshall_string(self.name);
         Self::append_header(OpCode::CacheCreateWithName, &mut payload)
+    }
+}
+
+/// Cache Destroy 1056
+pub(crate) struct CacheDestroy<'a> {
+    name: &'a str,
+}
+
+impl CacheDestroy<'_> {
+    pub(crate) fn from(name: &str) -> CacheDestroy {
+        CacheDestroy { name }
+    }
+}
+
+impl IntoIgniteBytes for CacheDestroy<'_> {
+    fn into_bytes(self) -> Vec<u8> {
+        let mut payload = i32::to_le_bytes(string_to_java_hashcode(self.name)).to_vec();
+        Self::append_header(OpCode::CacheDestroy, &mut payload)
     }
 }

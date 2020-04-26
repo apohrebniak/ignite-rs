@@ -1,4 +1,6 @@
-use crate::api::cache_config::{CacheCreateWithNameReq, CacheGetNamesReq, CacheGetNamesResp};
+use crate::api::cache_config::{
+    CacheCreateWithNameReq, CacheDestroy, CacheGetNamesReq, CacheGetNamesResp,
+};
 use crate::api::Response;
 use crate::connection::Connection;
 use crate::error::IgniteResult;
@@ -29,6 +31,7 @@ pub fn new_client(conf: ClientConfig) -> IgniteResult<Client> {
 pub trait Ignite {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>;
     fn create_cache(&mut self, name: &str) -> IgniteResult<()>;
+    fn destroy_cache(&mut self, name: &str) -> IgniteResult<()>;
 }
 
 /// Basic Ignite Client
@@ -61,7 +64,10 @@ impl Ignite for Client {
     }
 
     fn create_cache(&mut self, name: &str) -> IgniteResult<()> {
-        let req = CacheCreateWithNameReq::from(name);
-        self.conn.send_message(req)
+        self.conn.send_message(CacheCreateWithNameReq::from(name))
+    }
+
+    fn destroy_cache(&mut self, name: &str) -> IgniteResult<()> {
+        self.conn.send_message(CacheDestroy::from(name))
     }
 }
