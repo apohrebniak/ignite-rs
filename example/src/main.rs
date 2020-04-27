@@ -9,13 +9,12 @@ fn main() {
     if let Err(err) = ignite.destroy_cache("my_new_cache!") {
         println!("{:?}", err)
     }
-
     if let Err(err) = ignite.create_cache("my_new_cache!") {
         println!("{:?}", err)
     }
 
-    match ignite.get_cache_names() {
-        Ok(names) => println!("{:?}", names),
+    match ignite.get_cache_config("my_new_cache!") {
+        Ok(config) => println!("Config!"),
         Err(err) => println!("{:?}", err),
     }
 }

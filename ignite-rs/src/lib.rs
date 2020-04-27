@@ -1,11 +1,14 @@
 use crate::api::cache_config::{
-    CacheCreateWithNameReq, CacheDestroy, CacheGetNamesReq, CacheGetNamesResp,
+    CacheCreateWithNameReq, CacheDestroyReq, CacheGetConfigReq, CacheGetConfigResp,
+    CacheGetNamesReq, CacheGetNamesResp, CacheGetOrCreateWithNameReq,
 };
-use crate::api::Response;
+use crate::api::{OpCode, Response};
+use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
 use crate::error::IgniteResult;
 
 mod api;
+mod cache;
 mod connection;
 mod error;
 mod handshake;
@@ -30,7 +33,14 @@ pub fn new_client(conf: ClientConfig) -> IgniteResult<Client> {
 
 pub trait Ignite {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>;
-    fn create_cache(&mut self, name: &str) -> IgniteResult<()>;
+    fn create_cache(&mut self, name: &str) -> IgniteResult<Cache>;
+    fn get_or_create_cache(&mut self, name: &str) -> IgniteResult<Cache>;
+    fn create_cache_with_config(&mut self, config: &CacheConfiguration) -> IgniteResult<Cache>;
+    fn get_or_create_cache_with_config(
+        &mut self,
+        config: &CacheConfiguration,
+    ) -> IgniteResult<Cache>;
+    fn get_cache_config(&mut self, name: &str) -> IgniteResult<CacheConfiguration>;
     fn destroy_cache(&mut self, name: &str) -> IgniteResult<()>;
 }
 
@@ -58,16 +68,49 @@ impl Client {
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
         self.conn
-            .send_message(CacheGetNamesReq {})
+            .send_message(OpCode::CacheGetNames, CacheGetNamesReq {})
             .and_then(|_| CacheGetNamesResp::read_on_success(&mut self.conn))
             .map(|resp: CacheGetNamesResp| resp.names)
     }
 
-    fn create_cache(&mut self, name: &str) -> IgniteResult<()> {
-        self.conn.send_message(CacheCreateWithNameReq::from(name))
+    fn create_cache(&mut self, name: &str) -> IgniteResult<Cache> {
+        self.conn
+            .send_message(
+                OpCode::CacheCreateWithName,
+                CacheCreateWithNameReq::from(name),
+            )
+            .map(|_| Cache {}) //TODO: init cache
+    }
+
+    fn get_or_create_cache(&mut self, name: &str) -> IgniteResult<Cache> {
+        self.conn
+            .send_message(
+                OpCode::CacheGetOrCreateWithName,
+                CacheGetOrCreateWithNameReq::from(name),
+            )
+            .map(|_| Cache {}) //TODO: init cache
+    }
+
+    fn create_cache_with_config(&mut self, config: &CacheConfiguration) -> IgniteResult<Cache> {
+        unimplemented!()
+    }
+
+    fn get_or_create_cache_with_config(
+        &mut self,
+        config: &CacheConfiguration,
+    ) -> IgniteResult<Cache> {
+        unimplemented!()
+    }
+
+    fn get_cache_config(&mut self, name: &str) -> IgniteResult<CacheConfiguration> {
+        self.conn
+            .send_message(OpCode::CacheGetConfiguration, CacheGetConfigReq::from(name))
+            .and_then(|_| CacheGetConfigResp::read_on_success(&mut self.conn))
+            .map(|resp| resp.config)
     }
 
     fn destroy_cache(&mut self, name: &str) -> IgniteResult<()> {
-        self.conn.send_message(CacheDestroy::from(name))
+        self.conn
+            .send_message(OpCode::CacheDestroy, CacheDestroyReq::from(name))
     }
 }

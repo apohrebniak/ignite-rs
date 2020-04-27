@@ -80,7 +80,7 @@ pub(crate) struct HandshakeResp {
     major_v: i16,
     minor_v: i16,
     patch_v: i16,
-    err_msg: String,
+    err_msg: Option<String>,
 }
 
 impl HandshakeResp {
@@ -105,7 +105,7 @@ impl Into<IgniteError> for HandshakeResp {
     fn into(self) -> IgniteError {
         IgniteError {
             desc: format!(
-                "Handshake error: version: {}.{}.{} err: {}",
+                "Handshake error: version: {}.{}.{} err: {:?}",
                 self.major_v, self.minor_v, self.patch_v, self.err_msg
             ),
         }

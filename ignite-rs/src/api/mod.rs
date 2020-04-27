@@ -21,15 +21,8 @@ pub(crate) enum OpCode {
     CacheDestroy = 1056,
 }
 
-#[derive(PartialOrd, PartialEq)]
-pub(crate) enum TypeCode {
-    // primitives are skipped
-    String = 9,
-}
-
-pub(crate) trait Response {
-    type Success;
-    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self::Success>;
+pub(crate) trait Response: Sized {
+    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self>;
 }
 
 /// standard response header
@@ -60,7 +53,7 @@ impl RespHeader {
                         _length: length,
                         _id: id,
                         flag: Flag::Failure,
-                        err_msg: Some(err_msg),
+                        err_msg,
                     })
                 }
             }

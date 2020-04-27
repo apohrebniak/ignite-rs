@@ -2,9 +2,9 @@ use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 
-use crate::api::Flag;
+use crate::api::{Flag, OpCode};
 use crate::error::{IgniteError, IgniteResult};
-use crate::parser::IntoIgniteBytes;
+use crate::parser::{new_req_header_bytes, IntoIgniteBytes};
 use crate::{api, handshake, ClientConfig};
 
 const DEFAULT_BUFFER_SIZE_BYTES: usize = 1024;
@@ -36,9 +36,20 @@ impl Connection {
         }
     }
 
-    pub(crate) fn send_message(&mut self, data: impl IntoIgniteBytes) -> IgniteResult<()> {
+    pub(crate) fn send_message(
+        &mut self,
+        op_code: OpCode,
+        data: impl IntoIgniteBytes,
+    ) -> IgniteResult<()> {
+        let mut data = data.into_bytes();
+
+        //create header
+        let mut bytes = new_req_header_bytes(data.len(), op_code);
+        //combine with payload
+        bytes.append(&mut data);
+
         //send request
-        if let Err(err) = self.send_bytes(data.into_bytes().as_mut_slice()) {
+        if let Err(err) = self.send_bytes(bytes.as_mut_slice()) {
             return Err(err);
         }
 
