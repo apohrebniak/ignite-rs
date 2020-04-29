@@ -2,10 +2,11 @@ use std::io;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 
-use crate::api::{Flag, OpCode};
+use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
-use crate::parser::{new_req_header_bytes, IntoIgniteBytes};
-use crate::{api, handshake, ClientConfig};
+use crate::handshake::handshake;
+use crate::protocol::{new_req_header_bytes, read_resp_header, Flag, IntoIgniteBytes};
+use crate::{protocol, ClientConfig};
 
 const DEFAULT_BUFFER_SIZE_BYTES: usize = 1024;
 
@@ -19,7 +20,7 @@ impl Connection {
             Ok(stream) => {
                 let stream = BufReader::with_capacity(DEFAULT_BUFFER_SIZE_BYTES, stream);
                 let mut conn = Connection { stream };
-                match conn.try_handshake() {
+                match handshake(conn.stream.get_mut(), protocol::VERSION) {
                     Ok(_) => Ok(conn),
                     Err(err) => Err(err),
                 }
@@ -28,7 +29,7 @@ impl Connection {
         }
     }
 
-    /// writes bytes directly into socket
+    /// Writes bytes directly into socket
     fn send_bytes(&mut self, bytes: &mut [u8]) -> IgniteResult<()> {
         match self.stream.get_mut().write_all(bytes) {
             Ok(_) => Ok(()),
@@ -36,6 +37,7 @@ impl Connection {
         }
     }
 
+    /// Send message and read response header
     pub(crate) fn send_message(
         &mut self,
         op_code: OpCode,
@@ -54,35 +56,9 @@ impl Connection {
         }
 
         //read response
-        let resp_header = api::RespHeader::read_header(self)?;
-        match resp_header.flag {
+        match read_resp_header(self.stream.get_mut())? {
             Flag::Success => Ok(()),
-            Flag::Failure => Err(IgniteError::from(resp_header.err_msg)),
-        }
-    }
-
-    fn try_handshake(&mut self) -> IgniteResult<()> {
-        // build request struct
-        let req = handshake::HandshakeReq {
-            major_v: 1,
-            minor_v: 2,
-            patch_v: 0,
-            username: None,
-            password: None,
-        };
-        // request to bytes
-        let mut bytes: Vec<u8> = req.into();
-
-        // send bytes
-        if let Err(err) = self.send_bytes(bytes.as_mut_slice()) {
-            return Err(err);
-        };
-
-        // read response
-        let header = handshake::HandshakeRespHeader::read_header(&mut self.stream)?;
-        match header.flag {
-            1 => Ok(()),
-            _ => handshake::HandshakeResp::read_on_failure(&mut self.stream),
+            Flag::Failure { err_msg } => Err(IgniteError::from(err_msg.as_str())),
         }
     }
 }

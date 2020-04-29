@@ -1,16 +1,15 @@
 use std::io::Read;
 
-use crate::api::{OpCode, Response};
+use crate::api::Response;
 use crate::cache::{
     AtomicityMode, CacheConfiguration, CacheKeyConfiguration, CacheMode, IndexType,
     PartitionLossPolicy, QueryEntity, QueryField, QueryIndex, RebalanceMode,
     WriteSynchronizationMode,
 };
 use crate::error::{IgniteError, IgniteResult};
-use crate::parser;
-use crate::parser::{
-    marshall_string, new_req_header_bytes, read_bool, read_i32_le, read_i64_le, read_string,
-    read_u8, IntoIgniteBytes,
+use crate::protocol;
+use crate::protocol::{
+    marshall_string, read_bool, read_i32_le, read_i64_le, read_string, read_u8, IntoIgniteBytes,
 };
 use crate::utils::string_to_java_hashcode;
 use std::convert::TryFrom;
@@ -31,11 +30,11 @@ pub(crate) struct CacheGetNamesResp {
 impl Response for CacheGetNamesResp {
     fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self> {
         // cache count
-        let count = parser::read_i32_le(reader)?;
+        let count = protocol::read_i32_le(reader)?;
 
         let mut names = Vec::<String>::new();
         for _ in 0..count {
-            match parser::read_string(reader)? {
+            match protocol::read_string(reader)? {
                 None => return Err(IgniteError::from("NULL is not expected")),
                 Some(n) => names.push(n),
             };

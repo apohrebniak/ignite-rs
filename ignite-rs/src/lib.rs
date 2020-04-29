@@ -12,7 +12,7 @@ mod cache;
 mod connection;
 mod error;
 mod handshake;
-mod parser;
+mod protocol;
 mod utils;
 
 /// Ignite Client configuration
