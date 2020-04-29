@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use crate::cache::AtomicityMode::{Atomic, Transactional};
 use crate::cache::CacheMode::{Local, Partitioned, Replicated};
 use crate::cache::IndexType::{Fulltext, GeoSpatial, Sorted};
@@ -7,12 +9,13 @@ use crate::cache::PartitionLossPolicy::{
 use crate::cache::RebalanceMode::Async;
 use crate::cache::WriteSynchronizationMode::{FullAsync, FullSync, PrimarySync};
 use crate::error::IgniteError;
-use std::convert::TryFrom;
 
+#[derive(Clone)]
 pub enum AtomicityMode {
     Transactional = 0,
     Atomic = 1,
 }
+
 impl TryFrom<i32> for AtomicityMode {
     type Error = IgniteError;
 
@@ -25,11 +28,13 @@ impl TryFrom<i32> for AtomicityMode {
     }
 }
 
+#[derive(Clone)]
 pub enum CacheMode {
     Local = 0,
     Replicated = 1,
     Partitioned = 2,
 }
+
 impl TryFrom<i32> for CacheMode {
     type Error = IgniteError;
 
@@ -43,6 +48,7 @@ impl TryFrom<i32> for CacheMode {
     }
 }
 
+#[derive(Clone)]
 pub enum PartitionLossPolicy {
     ReadOnlySafe = 0,
     ReadOnlyAll = 1,
@@ -50,6 +56,7 @@ pub enum PartitionLossPolicy {
     ReadWriteAll = 3,
     Ignore = 4,
 }
+
 impl TryFrom<i32> for PartitionLossPolicy {
     type Error = IgniteError;
 
@@ -65,11 +72,13 @@ impl TryFrom<i32> for PartitionLossPolicy {
     }
 }
 
+#[derive(Clone)]
 pub enum RebalanceMode {
     Sync = 0,
     Async = 1,
     None = 2,
 }
+
 impl TryFrom<i32> for RebalanceMode {
     type Error = IgniteError;
 
@@ -83,11 +92,13 @@ impl TryFrom<i32> for RebalanceMode {
     }
 }
 
+#[derive(Clone)]
 pub enum WriteSynchronizationMode {
     FullSync = 0,
     FullAsync = 1,
     PrimarySync = 2,
 }
+
 impl TryFrom<i32> for WriteSynchronizationMode {
     type Error = IgniteError;
 
@@ -101,11 +112,13 @@ impl TryFrom<i32> for WriteSynchronizationMode {
     }
 }
 
+#[derive(Clone)]
 pub enum IndexType {
     Sorted = 0,
     Fulltext = 1,
     GeoSpatial = 2,
 }
+
 impl TryFrom<u8> for IndexType {
     type Error = IgniteError;
 
@@ -119,46 +132,105 @@ impl TryFrom<u8> for IndexType {
     }
 }
 
-pub struct Cache {}
-
-pub struct CacheConfiguration {
-    pub(crate) atomicity_mode: AtomicityMode,
-    pub(crate) num_backup: i32,
-    pub(crate) cache_mode: CacheMode,
-    pub(crate) copy_on_read: bool,
-    pub(crate) data_region_name: Option<String>,
-    pub(crate) eager_ttl: bool,
-    pub(crate) statistics_enabled: bool,
-    pub(crate) group_name: Option<String>,
-    pub(crate) default_lock_timeout_ms: i64,
-    pub(crate) max_concurrent_async_operations: i32,
-    pub(crate) max_query_iterators: i32,
-    pub(crate) name: String,
-    pub(crate) onheap_cache_enabled: bool,
-    pub(crate) partition_loss_policy: PartitionLossPolicy,
-    pub(crate) query_detail_metrics_size: i32,
-    pub(crate) query_parallelism: i32,
-    pub(crate) read_from_backup: bool,
-    pub(crate) rebalance_batch_size: i32,
-    pub(crate) rebalance_batches_prefetch_count: i64,
-    pub(crate) rebalance_delay_ms: i64,
-    pub(crate) rebalance_mode: RebalanceMode,
-    pub(crate) rebalance_order: i32,
-    pub(crate) rebalance_throttle_ms: i64,
-    pub(crate) rebalance_timeout_ms: i64,
-    pub(crate) sql_escape_all: bool,
-    pub(crate) sql_index_max_size: i32,
-    pub(crate) sql_schema: Option<String>,
-    pub(crate) write_synchronization_mode: WriteSynchronizationMode,
-    pub(crate) cache_key_configurations: Vec<CacheKeyConfiguration>,
-    pub(crate) query_entities: Vec<QueryEntity>,
+pub struct Cache {
+    _id: i32,
+    pub _name: String,
 }
 
+impl Cache {
+    pub(crate) fn new(id: i32, name: String) -> Cache {
+        Cache {
+            _id: id,
+            _name: name,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct CacheConfiguration {
+    pub atomicity_mode: AtomicityMode,
+    pub num_backup: i32,
+    pub cache_mode: CacheMode,
+    pub copy_on_read: bool,
+    pub data_region_name: Option<String>,
+    pub eager_ttl: bool,
+    pub statistics_enabled: bool,
+    pub group_name: Option<String>,
+    pub default_lock_timeout_ms: i64,
+    pub max_concurrent_async_operations: i32,
+    pub max_query_iterators: i32,
+    pub name: String,
+    pub onheap_cache_enabled: bool,
+    pub partition_loss_policy: PartitionLossPolicy,
+    pub query_detail_metrics_size: i32,
+    pub query_parallelism: i32,
+    pub read_from_backup: bool,
+    pub rebalance_batch_size: i32,
+    pub rebalance_batches_prefetch_count: i64,
+    pub rebalance_delay_ms: i64,
+    pub rebalance_mode: RebalanceMode,
+    pub rebalance_order: i32,
+    pub rebalance_throttle_ms: i64,
+    pub rebalance_timeout_ms: i64,
+    pub sql_escape_all: bool,
+    pub sql_index_max_size: i32,
+    pub sql_schema: Option<String>,
+    pub write_synchronization_mode: WriteSynchronizationMode,
+    pub cache_key_configurations: Option<Vec<CacheKeyConfiguration>>,
+    pub query_entities: Option<Vec<QueryEntity>>,
+}
+
+impl CacheConfiguration {
+    pub fn new(name: &str) -> CacheConfiguration {
+        CacheConfiguration {
+            name: name.to_owned(),
+            ..Self::default()
+        }
+    }
+
+    fn default() -> CacheConfiguration {
+        CacheConfiguration {
+            atomicity_mode: AtomicityMode::Atomic,
+            num_backup: 0,
+            cache_mode: CacheMode::Partitioned,
+            copy_on_read: true,
+            data_region_name: None,
+            eager_ttl: true,
+            statistics_enabled: true,
+            group_name: None,
+            default_lock_timeout_ms: 0,
+            max_concurrent_async_operations: 500,
+            max_query_iterators: 1024,
+            name: String::new(),
+            onheap_cache_enabled: false,
+            partition_loss_policy: PartitionLossPolicy::Ignore,
+            query_detail_metrics_size: 0,
+            query_parallelism: 1,
+            read_from_backup: true,
+            rebalance_batch_size: 512 * 1024, //512K
+            rebalance_batches_prefetch_count: 2,
+            rebalance_delay_ms: 0,
+            rebalance_mode: RebalanceMode::Async,
+            rebalance_order: 0,
+            rebalance_throttle_ms: 0,
+            rebalance_timeout_ms: 10000, //1sec
+            sql_escape_all: false,
+            sql_index_max_size: -1,
+            sql_schema: None,
+            write_synchronization_mode: WriteSynchronizationMode::PrimarySync,
+            cache_key_configurations: None,
+            query_entities: None,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct CacheKeyConfiguration {
     pub type_name: String,
     pub affinity_key_field_name: String,
 }
 
+#[derive(Clone)]
 pub struct QueryEntity {
     pub(crate) key_type: String,
     pub(crate) value_type: String,
@@ -171,6 +243,7 @@ pub struct QueryEntity {
     pub(crate) default_value: Option<String>, //TODO
 }
 
+#[derive(Clone)]
 pub struct QueryField {
     pub(crate) name: String,
     pub(crate) type_name: String,
@@ -178,6 +251,7 @@ pub struct QueryField {
     pub(crate) not_null_constraint: bool,
 }
 
+#[derive(Clone)]
 pub struct QueryIndex {
     pub(crate) index_name: String,
     pub(crate) index_type: IndexType,

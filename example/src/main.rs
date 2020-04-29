@@ -1,3 +1,4 @@
+use ignite_rs::cache::CacheConfiguration;
 use ignite_rs::{ClientConfig, Ignite};
 
 fn main() {
@@ -6,15 +7,21 @@ fn main() {
     };
     let mut ignite = ignite_rs::new_client(client_config).unwrap();
 
-    if let Err(err) = ignite.destroy_cache("my_new_cache!") {
-        println!("{:?}", err)
-    }
-    if let Err(err) = ignite.create_cache("my_new_cache!") {
-        println!("{:?}", err)
+    if let Ok(names) = ignite.get_cache_names() {
+        println!("{:?}", names)
     }
 
-    match ignite.get_cache_config("my_new_cache!") {
-        Ok(config) => println!("Config!"),
-        Err(err) => println!("{:?}", err),
+    let my_cache_config = CacheConfiguration::new("HELLO");
+
+    match ignite.get_or_create_cache_with_config(&my_cache_config) {
+        Ok(_) => println!("OK"),
+        Err(err) => println!("ERR {}", err),
+    }
+
+    let mut hello_config = ignite.get_cache_config("HELLO").unwrap();
+    hello_config.name = String::from("HELLO3");
+    match ignite.get_or_create_cache_with_config(&hello_config) {
+        Ok(_) => println!("OK2"),
+        Err(err) => println!("ERR {}", err),
     }
 }

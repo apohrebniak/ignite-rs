@@ -5,7 +5,7 @@ use std::net::TcpStream;
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
 use crate::handshake::handshake;
-use crate::protocol::{new_req_header_bytes, read_resp_header, Flag, IntoIgniteBytes};
+use crate::protocol::{new_req_header_bytes, read_resp_header, Flag, Pack};
 use crate::{protocol, ClientConfig};
 
 const DEFAULT_BUFFER_SIZE_BYTES: usize = 1024;
@@ -38,12 +38,8 @@ impl Connection {
     }
 
     /// Send message and read response header
-    pub(crate) fn send_message(
-        &mut self,
-        op_code: OpCode,
-        data: impl IntoIgniteBytes,
-    ) -> IgniteResult<()> {
-        let mut data = data.into_bytes();
+    pub(crate) fn send_message(&mut self, op_code: OpCode, data: impl Pack) -> IgniteResult<()> {
+        let mut data = data.pack();
 
         //create header
         let mut bytes = new_req_header_bytes(data.len(), op_code);
