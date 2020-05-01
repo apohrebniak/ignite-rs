@@ -3,10 +3,8 @@ use std::io::Read;
 use crate::api::Response;
 use crate::cache::CacheConfiguration;
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol;
-use crate::protocol::{
-    pack_cache_configuration, pack_string, read_cache_configuration, read_i32_le, Pack,
-};
+use crate::protocol::cache_config::{pack_cache_configuration, read_cache_configuration};
+use crate::protocol::{pack_i32, pack_string, read_i32, read_string, Pack};
 use crate::utils::string_to_java_hashcode;
 
 /// Cache Get Names 1050
@@ -26,11 +24,11 @@ impl Response for CacheGetNamesResp {
     //TODO: string array?
     fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self> {
         // cache count
-        let count = protocol::read_i32_le(reader)?;
+        let count = read_i32(reader)?;
 
         let mut names = Vec::<String>::new();
         for _ in 0..count {
-            match protocol::read_string(reader)? {
+            match read_string(reader)? {
                 None => return Err(IgniteError::from("NULL is not expected")),
                 Some(n) => names.push(n),
             };
@@ -112,7 +110,7 @@ impl Pack for CacheGetConfigReq<'_> {
     fn pack(self) -> Vec<u8> {
         let cache_id = string_to_java_hashcode(self.name);
         let mut bytes = Vec::<u8>::new();
-        bytes.append(&mut i32::to_le_bytes(cache_id).to_vec());
+        bytes.append(&mut pack_i32(cache_id));
         bytes.push(self.flag);
         bytes
     }
@@ -124,7 +122,7 @@ pub(crate) struct CacheGetConfigResp {
 
 impl Response for CacheGetConfigResp {
     fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self> {
-        let _ = read_i32_le(reader)?;
+        let _ = read_i32(reader)?;
         let config = read_cache_configuration(reader)?;
         Ok(CacheGetConfigResp { config })
     }
@@ -143,6 +141,6 @@ impl CacheDestroyReq<'_> {
 
 impl Pack for CacheDestroyReq<'_> {
     fn pack(self) -> Vec<u8> {
-        i32::to_le_bytes(string_to_java_hashcode(self.name)).to_vec()
+        pack_i32(string_to_java_hashcode(self.name))
     }
 }
