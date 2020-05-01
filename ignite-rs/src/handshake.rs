@@ -2,14 +2,14 @@ use std::io::{Read, Write};
 
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::{read_i16, read_i32_le, read_string, read_u8, Version};
+use crate::protocol::{pack_i16, pack_i32, read_i16, read_i32, read_string, read_u8, Version};
 
 pub(crate) fn handshake<T: Read + Write>(conn: &mut T, version: Version) -> IgniteResult<()> {
     let mut payload = Vec::<u8>::new();
     payload.push(OpCode::Handshake as u8);
-    payload.append(&mut i16::to_le_bytes(version.0).to_vec());
-    payload.append(&mut i16::to_le_bytes(version.1).to_vec());
-    payload.append(&mut i16::to_le_bytes(version.2).to_vec());
+    payload.append(&mut pack_i16(version.0));
+    payload.append(&mut pack_i16(version.1));
+    payload.append(&mut pack_i16(version.2));
     payload.push(2); //client code
                      // // if let Some(x) = self.username { //TODO: implement
                      // //     bytes.append(x.as_bytes());
@@ -21,7 +21,7 @@ pub(crate) fn handshake<T: Read + Write>(conn: &mut T, version: Version) -> Igni
 
     // insert length in the begging of message
     let mut bytes = Vec::new();
-    bytes.append(&mut i32::to_le_bytes(len).to_vec());
+    bytes.append(&mut pack_i32(len));
     bytes.append(&mut payload);
 
     // send bytes
@@ -30,7 +30,7 @@ pub(crate) fn handshake<T: Read + Write>(conn: &mut T, version: Version) -> Igni
     };
 
     // read header
-    let _ = read_i32_le(conn)?;
+    let _ = read_i32(conn)?;
     match read_u8(conn)? {
         1 => Ok(()),
         _ => match read_handshake_err(conn) {

@@ -42,7 +42,7 @@ impl Connection {
         let mut data = data.pack();
 
         //create header
-        let mut bytes = new_req_header_bytes(data.len(), op_code);
+        let mut bytes = new_req_header_bytes(data.len(), op_code.into());
         //combine with payload
         bytes.append(&mut data);
 

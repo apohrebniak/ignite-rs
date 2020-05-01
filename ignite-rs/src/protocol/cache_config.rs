@@ -1,31 +1,22 @@
 use std::convert::TryFrom;
-use std::io;
-use std::io::{ErrorKind, Read};
-use std::option::Option::Some;
+use std::io::Read;
 
-use crate::api::OpCode;
 use crate::cache::{
-    AtomicityMode, CacheConfiguration, CacheKeyConfiguration, CacheMode, IndexType,
-    PartitionLossPolicy, QueryEntity, QueryField, QueryIndex, RebalanceMode,
+    AtomicityMode, CacheMode, IndexType, PartitionLossPolicy, RebalanceMode,
     WriteSynchronizationMode,
 };
-use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::ConfigPropertyCode::*;
-use crate::protocol::Flag::{Failure, Success};
+use crate::cache::{
+    CacheConfiguration, CacheKeyConfiguration, QueryEntity, QueryField, QueryIndex,
+};
+use crate::error::IgniteError;
+use crate::error::IgniteResult;
+use crate::protocol::cache_config::ConfigPropertyCode::*;
+use crate::protocol::{
+    pack_bool, pack_i16, pack_i32, pack_i64, pack_string, pack_u8, read_bool, read_i32, read_i64,
+    read_string, read_u8,
+};
 
-const REQ_HEADER_SIZE_BYTES: i32 = 10;
-pub(crate) const VERSION: Version = Version(1, 2, 0);
-
-pub(crate) struct Version(pub(crate) i16, pub(crate) i16, pub(crate) i16);
-
-/// https://apacheignite.readme.io/docs/binary-client-protocol-data-format
-#[derive(PartialOrd, PartialEq)]
-pub(crate) enum TypeCode {
-    // primitives are skipped
-    String = 9,
-    Null = 101,
-}
-
+/// Cache Configuration Properties Codes
 #[derive(PartialOrd, PartialEq)]
 pub(crate) enum ConfigPropertyCode {
     Name = 0,
@@ -64,138 +55,6 @@ impl Into<i16> for ConfigPropertyCode {
     fn into(self) -> i16 {
         self as i16
     }
-}
-
-/// Flag of general Response header
-pub(crate) enum Flag {
-    Success,
-    Failure { err_msg: String },
-}
-
-/// Implementations of this trait could be serialized into Ignite byte sequence
-pub(crate) trait Pack {
-    fn pack(self) -> Vec<u8>;
-}
-
-/// Returns binary repr of standard request header
-pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: OpCode) -> Vec<u8> {
-    let mut data = Vec::<u8>::new();
-    data.append(&mut i32::to_le_bytes(payload_len as i32 + REQ_HEADER_SIZE_BYTES).to_vec());
-    data.append(&mut i16::to_le_bytes(op_code as i16).to_vec());
-    data.append(&mut i64::to_le_bytes(0).to_vec()); //TODO: do smth with id
-    data
-}
-
-/// Reads standard response header
-pub(crate) fn read_resp_header(reader: &mut impl Read) -> IgniteResult<Flag> {
-    let _ = read_i32_le(reader)?;
-    let _ = read_i64_le(reader)?;
-    match read_i32_le(reader)? {
-        0 => Ok(Success),
-        _ => {
-            let err_msg = read_string(reader)?;
-            Ok(Failure {
-                err_msg: err_msg.unwrap(),
-            })
-        }
-    }
-}
-
-pub(crate) fn read_string(reader: &mut impl Read) -> io::Result<Option<String>> {
-    //TODO: move to 'read object'
-    let type_code = read_u8(reader)?;
-
-    if TypeCode::Null as u8 == type_code {
-        return Ok(None);
-    }
-
-    if TypeCode::String as u8 != type_code {
-        return Err(io::Error::new(ErrorKind::InvalidInput, "string expected"));
-    }
-
-    let str_len = read_i32_le(reader)?;
-
-    let mut new_alloc = vec![0u8; str_len as usize];
-    match reader.read_exact(new_alloc.as_mut_slice()) {
-        Ok(_) => match String::from_utf8(new_alloc) {
-            Ok(s) => Ok(Some(s)),
-            Err(err) => Err(io::Error::new(ErrorKind::InvalidData, err)),
-        },
-        Err(err) => Err(err),
-    }
-}
-
-pub(crate) fn pack_string(value: &str) -> Vec<u8> {
-    let value_bytes = value.as_bytes();
-    let mut bytes = Vec::<u8>::new();
-    bytes.push(TypeCode::String as u8);
-    bytes.append(&mut i32::to_le_bytes(value_bytes.len() as i32).to_vec());
-    bytes.extend_from_slice(&value_bytes);
-    bytes
-}
-
-pub(crate) fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
-    let mut new_alloc = [0u8; 1];
-    match reader.read_exact(&mut new_alloc[..]) {
-        Ok(_) => Ok(0u8.ne(&new_alloc[0])),
-        Err(err) => Err(err),
-    }
-}
-
-pub(crate) fn pack_bool(v: bool) -> Vec<u8> {
-    if v {
-        pack_u8(1u8)
-    } else {
-        pack_u8(0u8)
-    }
-}
-
-pub(crate) fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
-    let mut new_alloc = [0u8; 1];
-    match reader.read_exact(&mut new_alloc[..]) {
-        Ok(_) => Ok(u8::from_le_bytes(new_alloc)),
-        Err(err) => Err(err),
-    }
-}
-
-pub(crate) fn pack_u8(v: u8) -> Vec<u8> {
-    u8::to_le_bytes(v).to_vec()
-}
-
-pub(crate) fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
-    let mut new_alloc = [0u8; 2];
-    match reader.read_exact(&mut new_alloc[..]) {
-        Ok(_) => Ok(i16::from_le_bytes(new_alloc)),
-        Err(err) => Err(err),
-    }
-}
-
-pub(crate) fn pack_i16(v: i16) -> Vec<u8> {
-    i16::to_le_bytes(v).to_vec()
-}
-
-pub(crate) fn read_i32_le(reader: &mut impl Read) -> io::Result<i32> {
-    let mut new_alloc = [0u8; 4];
-    match reader.read_exact(&mut new_alloc[..]) {
-        Ok(_) => Ok(i32::from_le_bytes(new_alloc)),
-        Err(err) => Err(err),
-    }
-}
-
-pub(crate) fn pack_i32(v: i32) -> Vec<u8> {
-    i32::to_le_bytes(v).to_vec()
-}
-
-pub(crate) fn read_i64_le(reader: &mut impl Read) -> io::Result<i64> {
-    let mut new_alloc = [0u8; 8];
-    match reader.read_exact(&mut new_alloc[..]) {
-        Ok(_) => Ok(i64::from_le_bytes(new_alloc)),
-        Err(err) => Err(err),
-    }
-}
-
-pub(crate) fn pack_i64(v: i64) -> Vec<u8> {
-    i64::to_le_bytes(v).to_vec()
 }
 
 /// https://apacheignite.readme.io/docs/binary-client-protocol-cache-configuration-operations#op_cache_create_with_configuration
@@ -365,34 +224,34 @@ fn pack_cache_config_property(code: ConfigPropertyCode, mut payload: Vec<u8>) ->
 
 pub(crate) fn read_cache_configuration(reader: &mut impl Read) -> IgniteResult<CacheConfiguration> {
     let config = CacheConfiguration {
-        atomicity_mode: AtomicityMode::try_from(read_i32_le(reader)?)?,
-        num_backup: read_i32_le(reader)?,
-        cache_mode: CacheMode::try_from(read_i32_le(reader)?)?,
+        atomicity_mode: AtomicityMode::try_from(read_i32(reader)?)?,
+        num_backup: read_i32(reader)?,
+        cache_mode: CacheMode::try_from(read_i32(reader)?)?,
         copy_on_read: read_bool(reader)?,
         data_region_name: read_string(reader)?,
         eager_ttl: read_bool(reader)?,
         statistics_enabled: read_bool(reader)?,
         group_name: read_string(reader)?,
-        default_lock_timeout_ms: read_i64_le(reader)?,
-        max_concurrent_async_operations: read_i32_le(reader)?,
-        max_query_iterators: read_i32_le(reader)?,
+        default_lock_timeout_ms: read_i64(reader)?,
+        max_concurrent_async_operations: read_i32(reader)?,
+        max_query_iterators: read_i32(reader)?,
         name: read_string(reader)?.ok_or_else(|| IgniteError::from("name is required"))?,
         onheap_cache_enabled: read_bool(reader)?,
-        partition_loss_policy: PartitionLossPolicy::try_from(read_i32_le(reader)?)?,
-        query_detail_metrics_size: read_i32_le(reader)?,
-        query_parallelism: read_i32_le(reader)?,
+        partition_loss_policy: PartitionLossPolicy::try_from(read_i32(reader)?)?,
+        query_detail_metrics_size: read_i32(reader)?,
+        query_parallelism: read_i32(reader)?,
         read_from_backup: read_bool(reader)?,
-        rebalance_batch_size: read_i32_le(reader)?,
-        rebalance_batches_prefetch_count: read_i64_le(reader)?,
-        rebalance_delay_ms: read_i64_le(reader)?,
-        rebalance_mode: RebalanceMode::try_from(read_i32_le(reader)?)?,
-        rebalance_order: read_i32_le(reader)?,
-        rebalance_throttle_ms: read_i64_le(reader)?,
-        rebalance_timeout_ms: read_i64_le(reader)?,
+        rebalance_batch_size: read_i32(reader)?,
+        rebalance_batches_prefetch_count: read_i64(reader)?,
+        rebalance_delay_ms: read_i64(reader)?,
+        rebalance_mode: RebalanceMode::try_from(read_i32(reader)?)?,
+        rebalance_order: read_i32(reader)?,
+        rebalance_throttle_ms: read_i64(reader)?,
+        rebalance_timeout_ms: read_i64(reader)?,
         sql_escape_all: read_bool(reader)?,
-        sql_index_max_size: read_i32_le(reader)?,
+        sql_index_max_size: read_i32(reader)?,
         sql_schema: read_string(reader)?,
-        write_synchronization_mode: WriteSynchronizationMode::try_from(read_i32_le(reader)?)?,
+        write_synchronization_mode: WriteSynchronizationMode::try_from(read_i32(reader)?)?,
         cache_key_configurations: Some(read_cache_key_configs(reader)?),
         query_entities: Some(read_query_entities(reader)?),
     };
@@ -400,7 +259,7 @@ pub(crate) fn read_cache_configuration(reader: &mut impl Read) -> IgniteResult<C
 }
 
 fn read_cache_key_configs(reader: &mut impl Read) -> IgniteResult<Vec<CacheKeyConfiguration>> {
-    let count = read_i32_le(reader)?;
+    let count = read_i32(reader)?;
     let mut result = Vec::<CacheKeyConfiguration>::new();
     for _ in 0..count {
         let type_name = read_string(reader)?.unwrap();
@@ -428,7 +287,7 @@ fn pack_cache_key_configs(configs: &[CacheKeyConfiguration]) -> Vec<u8> {
 }
 
 fn read_query_entities(reader: &mut impl Read) -> IgniteResult<Vec<QueryEntity>> {
-    let count = read_i32_le(reader)?;
+    let count = read_i32(reader)?;
     let mut result = Vec::<QueryEntity>::new();
     for _ in 0..count {
         let key_type = read_string(reader)?.unwrap();
@@ -473,7 +332,7 @@ fn pack_query_entities(entities: &[QueryEntity]) -> Vec<u8> {
 }
 
 fn read_query_fields(reader: &mut impl Read) -> IgniteResult<Vec<QueryField>> {
-    let count = read_i32_le(reader)?;
+    let count = read_i32(reader)?;
     let mut result = Vec::<QueryField>::new();
     for _ in 0..count {
         let name = read_string(reader)?.unwrap();
@@ -505,7 +364,7 @@ fn pack_query_fields(fields: &[QueryField]) -> Vec<u8> {
 }
 
 fn read_query_field_aliases(reader: &mut impl Read) -> IgniteResult<Vec<(String, String)>> {
-    let count = read_i32_le(reader)?;
+    let count = read_i32(reader)?;
     let mut result = Vec::<(String, String)>::new();
     for _ in 0..count {
         let name = read_string(reader)?.unwrap();
@@ -528,12 +387,12 @@ fn pack_field_aliases(aliases: &[(String, String)]) -> Vec<u8> {
 }
 
 fn read_query_indexes(reader: &mut impl Read) -> IgniteResult<Vec<QueryIndex>> {
-    let count = read_i32_le(reader)?;
+    let count = read_i32(reader)?;
     let mut result = Vec::<QueryIndex>::new();
     for _ in 0..count {
         let index_name = read_string(reader)?.unwrap();
         let index_type = IndexType::try_from(read_u8(reader)?)?;
-        let inline_size = read_i32_le(reader)?;
+        let inline_size = read_i32(reader)?;
         let fields = read_query_index_fields(reader)?;
         result.push(QueryIndex {
             index_name,
@@ -560,7 +419,7 @@ fn pack_query_indexes(indexes: &[QueryIndex]) -> Vec<u8> {
 }
 
 fn read_query_index_fields(reader: &mut impl Read) -> IgniteResult<Vec<(String, bool)>> {
-    let count = read_i32_le(reader)?;
+    let count = read_i32(reader)?;
     let mut result = Vec::<(String, bool)>::new();
     for _ in 0..count {
         let name = read_string(reader)?.unwrap();
