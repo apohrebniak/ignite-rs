@@ -1,10 +1,27 @@
-use ignite_rs::Ignite;
+use ignite_rs::cache::CacheConfiguration;
+use ignite_rs::{ClientConfig, Ignite};
 
 fn main() {
-    let ignite = Ignite::new(String::from("localhost:10800")).unwrap();
-    let conn = ignite.get_new_connection();
+    let client_config = ClientConfig {
+        addr: String::from("127.0.0.1:10800"),
+    };
+    let mut ignite = ignite_rs::new_client(client_config).unwrap();
 
-    if let Ok(_) = conn {
-        println!("Connection established!")
+    if let Ok(names) = ignite.get_cache_names() {
+        println!("{:?}", names)
+    }
+
+    let my_cache_config = CacheConfiguration::new("HELLO");
+
+    match ignite.get_or_create_cache_with_config(&my_cache_config) {
+        Ok(_) => println!("OK"),
+        Err(err) => println!("ERR {}", err),
+    }
+
+    let mut hello_config = ignite.get_cache_config("HELLO").unwrap();
+    hello_config.name = String::from("HELLO3");
+    match ignite.get_or_create_cache_with_config(&hello_config) {
+        Ok(_) => println!("OK2"),
+        Err(err) => println!("ERR {}", err),
     }
 }
