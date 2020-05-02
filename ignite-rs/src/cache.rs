@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use crate::api::key_value::CacheReq;
 use crate::cache::AtomicityMode::{Atomic, Transactional};
 use crate::cache::CacheMode::{Local, Partitioned, Replicated};
 use crate::cache::IndexType::{Fulltext, GeoSpatial, Sorted};
@@ -8,7 +9,10 @@ use crate::cache::PartitionLossPolicy::{
 };
 use crate::cache::RebalanceMode::Async;
 use crate::cache::WriteSynchronizationMode::{FullAsync, FullSync, PrimarySync};
-use crate::error::IgniteError;
+use crate::error::{IgniteError, IgniteResult};
+use crate::protocol::{Pack, Unpack};
+use crate::{protocol, Ignite, IgniteObj};
+use std::marker::PhantomData;
 
 #[derive(Clone)]
 pub enum AtomicityMode {
@@ -132,20 +136,6 @@ impl TryFrom<u8> for IndexType {
     }
 }
 
-pub struct Cache {
-    _id: i32,
-    pub _name: String,
-}
-
-impl Cache {
-    pub(crate) fn new(id: i32, name: String) -> Cache {
-        Cache {
-            _id: id,
-            _name: name,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct CacheConfiguration {
     pub atomicity_mode: AtomicityMode,
@@ -257,4 +247,32 @@ pub struct QueryIndex {
     pub(crate) index_type: IndexType,
     pub(crate) inline_size: i32,
     pub(crate) fields: Vec<(String, bool)>,
+}
+
+/// Ignite key-value cache
+pub struct Cache<K: Pack + Unpack, V: Pack + Unpack> {
+    _id: i32,
+    pub _name: String,
+    k_phantom: PhantomData<K>,
+    v_phantom: PhantomData<V>,
+}
+
+impl<K: Pack + Unpack, V: Pack + Unpack> Cache<K, V> {
+    pub(crate) fn new(id: i32, name: String) -> Cache<K, V> {
+        Cache {
+            _id: id,
+            _name: name,
+            k_phantom: PhantomData,
+            v_phantom: PhantomData,
+        }
+    }
+
+    pub fn get(&self, key: K) -> IgniteResult<Option<V>> {
+        let req: CacheReq<K, V> = CacheReq::Get(0, key);
+        Ok(None)
+    }
+
+    pub fn put(key: &K, value: &V) -> IgniteResult<()> {
+        Ok(())
+    }
 }

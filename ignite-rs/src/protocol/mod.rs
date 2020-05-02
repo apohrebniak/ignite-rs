@@ -69,8 +69,12 @@ pub(crate) enum Flag {
 }
 
 /// Implementations of this trait could be serialized into Ignite byte sequence
-pub(crate) trait Pack {
+pub trait Pack {
     fn pack(self) -> Vec<u8>;
+}
+/// Implementations of this trait could be deserialized from Ignite byte sequence
+pub trait Unpack {
+    fn unpack(self) -> Vec<u8>;
 }
 
 /// Returns binary repr of standard request header
