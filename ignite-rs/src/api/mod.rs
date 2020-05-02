@@ -3,6 +3,7 @@ use std::io::Read;
 use crate::error::IgniteResult;
 
 pub(crate) mod cache_config;
+pub(crate) mod key_value;
 
 pub(crate) enum OpCode {
     Handshake = 1,
