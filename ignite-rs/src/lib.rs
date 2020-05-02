@@ -7,6 +7,7 @@ use crate::api::{OpCode, Response};
 use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
 use crate::error::IgniteResult;
+use crate::protocol::{Pack, Unpack};
 use crate::utils::string_to_java_hashcode;
 
 mod api;
@@ -39,17 +40,26 @@ pub trait Ignite {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>;
     /// Creates a new cache with provided name and default configuration.
     /// Fails if cache with this name already exists
-    fn create_cache(&mut self, name: &str) -> IgniteResult<Cache>;
+    fn create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+        &mut self,
+        name: &str,
+    ) -> IgniteResult<Cache<K, V>>;
     /// Returns or creates a new cache with provided name and default configuration.
-    fn get_or_create_cache(&mut self, name: &str) -> IgniteResult<Cache>;
+    fn get_or_create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+        &mut self,
+        name: &str,
+    ) -> IgniteResult<Cache<K, V>>;
     /// Creates a new cache with provided configuration.
     /// Fails if cache with this name already exists
-    fn create_cache_with_config(&mut self, config: &CacheConfiguration) -> IgniteResult<Cache>;
-    /// Creates a new cache with provided configuration.
-    fn get_or_create_cache_with_config(
+    fn create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
         &mut self,
         config: &CacheConfiguration,
-    ) -> IgniteResult<Cache>;
+    ) -> IgniteResult<Cache<K, V>>;
+    /// Creates a new cache with provided configuration.
+    fn get_or_create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
+        &mut self,
+        config: &CacheConfiguration,
+    ) -> IgniteResult<Cache<K, V>>;
     /// Returns a configuration of the requested cache.
     /// Fails if there is no such cache
     fn get_cache_config(&mut self, name: &str) -> IgniteResult<CacheConfiguration>;
@@ -86,7 +96,10 @@ impl Ignite for Client {
             .map(|resp: CacheGetNamesResp| resp.names)
     }
 
-    fn create_cache(&mut self, name: &str) -> IgniteResult<Cache> {
+    fn create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+        &mut self,
+        name: &str,
+    ) -> IgniteResult<Cache<K, V>> {
         self.conn
             .send_message(
                 OpCode::CacheCreateWithName,
@@ -95,7 +108,10 @@ impl Ignite for Client {
             .map(|_| Cache::new(string_to_java_hashcode(name), name.to_owned()))
     }
 
-    fn get_or_create_cache(&mut self, name: &str) -> IgniteResult<Cache> {
+    fn get_or_create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+        &mut self,
+        name: &str,
+    ) -> IgniteResult<Cache<K, V>> {
         self.conn
             .send_message(
                 OpCode::CacheGetOrCreateWithName,
@@ -104,7 +120,10 @@ impl Ignite for Client {
             .map(|_| Cache::new(string_to_java_hashcode(name), name.to_owned()))
     }
 
-    fn create_cache_with_config(&mut self, config: &CacheConfiguration) -> IgniteResult<Cache> {
+    fn create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
+        &mut self,
+        config: &CacheConfiguration,
+    ) -> IgniteResult<Cache<K, V>> {
         self.conn
             .send_message(
                 OpCode::CacheCreateWithConfiguration,
@@ -118,10 +137,10 @@ impl Ignite for Client {
             })
     }
 
-    fn get_or_create_cache_with_config(
+    fn get_or_create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
         &mut self,
         config: &CacheConfiguration,
-    ) -> IgniteResult<Cache> {
+    ) -> IgniteResult<Cache<K, V>> {
         self.conn
             .send_message(
                 OpCode::CacheGetOrCreateWithConfiguration,
@@ -147,3 +166,5 @@ impl Ignite for Client {
             .send_message(OpCode::CacheDestroy, CacheDestroyReq::from(name))
     }
 }
+
+pub struct IgniteObj;
