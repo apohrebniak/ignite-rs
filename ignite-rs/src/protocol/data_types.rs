@@ -1,110 +1,70 @@
-use std::io::Read;
-use crate::protocol::{read_u8, read_i16, read_i32, read_i64, read_bool, read_f32, read_f64, read_char, read_string};
-use crate::protocol::TypeCode;
 use crate::error::IgniteResult;
+use crate::protocol::TypeCode;
+use crate::protocol::{
+    read_bool, read_char, read_f32, read_f64, read_i16, read_i32, read_i64, read_string, read_u8,
+    Unpack,
+};
 use std::convert::TryFrom;
 use std::io;
+use std::io::Read;
 
-pub struct IgniteType;
-
-
-///
-/// -> IgniteType
-///
-impl From<u8> for IgniteType {
-    fn from(_: u8) -> Self {
+impl Unpack for u8 {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<i16> for IgniteType {
-    fn from(_: i16) -> Self {
+impl Unpack for i16 {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<i32> for IgniteType {
-    fn from(_: i32) -> Self {
+impl Unpack for i32 {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<i64> for IgniteType {
-    fn from(_: i64) -> Self {
+impl Unpack for i64 {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<f32> for IgniteType {
-    fn from(_: f32) -> Self {
+impl Unpack for f32 {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<f64> for IgniteType {
-    fn from(_: f64) -> Self {
+impl Unpack for f64 {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<char> for IgniteType {
-    fn from(_: char) -> Self {
+impl Unpack for char {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<bool> for IgniteType {
-    fn from(_: bool) -> Self {
+impl Unpack for bool {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-impl From<String> for IgniteType {
-    fn from(_: String) -> Self {
+impl Unpack for String {
+    fn unpack(self) -> Vec<u8> {
         unimplemented!()
     }
 }
 
-///
-/// <- IgniteType
-///
-
-
-impl From<IgniteType> for String {
-    fn from(_: IgniteType) -> Self {
-        unimplemented!()
-    }
-}
-
-impl From<IgniteType> for u8 {
-    fn from(_: IgniteType) -> Self {
-        unimplemented!()
-    }
-}
-
-fn put<K: Into<IgniteType>, V: Into<IgniteType>>(key: K, value: V) {
-    let x: IgniteType = key.into();
-    let y: IgniteType = value.into();
-}
-
-fn get<K: Into<IgniteType>, V: From<IgniteType>>(key: K) -> V {
-    let x: IgniteType = key.into();
-    let value: IgniteType = IgniteType{};
-    let y: V = value.into();
-    y
-}
-
-fn main() {
-    let key: i32 = 11;
-    let value: String = "ffff".to_owned();
-    put(key, value);
-    let value: String = get(key);
-}
-
-
-pub fn read_binary(reader: &mut impl Read) -> IgniteResult<Option<IgniteType>> {
+pub fn read_data_obj(reader: &mut impl Read) -> IgniteResult<Option<Box<dyn Unpack>>> {
     let type_code = TypeCode::try_from(read_u8(reader)?)?;
-    let value: Option<IgniteType> = match type_code {
+    let value: Option<Box<dyn Unpack>> = match type_code {
         TypeCode::Byte => wrap(read_u8(reader)?),
         TypeCode::Short => wrap(read_i16(reader)?),
         TypeCode::Int => wrap(read_i32(reader)?),
@@ -146,10 +106,10 @@ pub fn read_binary(reader: &mut impl Read) -> IgniteResult<Option<IgniteType>> {
     Ok(value)
 }
 
-fn wrap<T: Into<IgniteType>>(v: T) -> Option<IgniteType> {
-    Some(v.into())
+fn wrap(v: impl Unpack + 'static) -> Option<Box<dyn Unpack>> {
+    Some(Box::new(v))
 }
 
-fn read_string_TODO(_: &mut impl Read) ->  io::Result<String>{
+fn read_string_TODO(_: &mut impl Read) -> io::Result<String> {
     Ok(String::new())
 }
