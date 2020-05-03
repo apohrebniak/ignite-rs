@@ -43,10 +43,10 @@ impl<K: Pack, V: Pack> Pack for CacheReq<K, V> {
             | CacheReq::GetAndPutIfAbsent(id, key, value)
             | CacheReq::Replace(id, key, value)
             | CacheReq::RemoveIfEquals(id, key, value) => {}
-            CacheReq::PutAll(id, pairs) => {}
-            CacheReq::ReplaceIfEquals(id, _, _, _) => {}
+            CacheReq::PutAll(_id, _pairs) => {}
+            CacheReq::ReplaceIfEquals(_id, _, _, _) => {}
             CacheReq::Clear(id) | CacheReq::RemoveAll(id) => {}
-            CacheReq::GetSize(id) => {}
+            CacheReq::GetSize(_id) => {}
         }
         Vec::new()
     }

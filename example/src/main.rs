@@ -11,17 +11,17 @@ fn main() {
         println!("{:?}", names)
     }
 
-    let my_cache_config = CacheConfiguration::new("HELLO");
+    // let my_cache_config = CacheConfiguration::new("HELLO");
 
-    match ignite.get_or_create_cache_with_config(&my_cache_config) {
-        Ok(_) => println!("OK"),
-        Err(err) => println!("ERR {}", err),
-    }
+    // match ignite.get_or_create_cache_with_config(&my_cache_config) {
+    //     Ok(_) => println!("OK"),
+    //     Err(err) => println!("ERR {}", err),
+    // }
 
-    let mut hello_config = ignite.get_cache_config("HELLO").unwrap();
-    hello_config.name = String::from("HELLO3");
-    match ignite.get_or_create_cache_with_config(&hello_config) {
-        Ok(_) => println!("OK2"),
-        Err(err) => println!("ERR {}", err),
-    }
+    // let mut hello_config = ignite.get_cache_config("HELLO").unwrap();
+    // hello_config.name = String::from("HELLO3");
+    // match ignite.get_or_create_cache_with_config(&hello_config) {
+    //     Ok(_) => println!("OK2"),
+    //     Err(err) => println!("ERR {}", err),
+    // }
 }

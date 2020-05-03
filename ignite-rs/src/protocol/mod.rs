@@ -1,10 +1,12 @@
 use std::io;
 use std::io::{ErrorKind, Read};
 
-use crate::error::IgniteResult;
+use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::Flag::{Failure, Success};
+use std::convert::TryFrom;
 
 pub(crate) mod cache_config;
+pub(crate) mod data_types;
 
 const REQ_HEADER_SIZE_BYTES: i32 = 10;
 
@@ -16,7 +18,6 @@ pub(crate) struct Version(pub(crate) i16, pub(crate) i16, pub(crate) i16);
 /// All Data types described in Binary Protocol
 /// https://apacheignite.readme.io/docs/binary-client-protocol-data-format
 #[derive(PartialOrd, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum TypeCode {
     // primitives
     Byte = 1,
@@ -60,6 +61,54 @@ pub(crate) enum TypeCode {
     WrappedData = 27,
     BinaryEnum = 38,
     Null = 101,
+}
+
+impl TryFrom<u8> for TypeCode {
+    //TODO: rewrite
+    type Error = IgniteError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(TypeCode::Byte),
+            2 => Ok(TypeCode::Short),
+            3 => Ok(TypeCode::Int),
+            4 => Ok(TypeCode::Long),
+            5 => Ok(TypeCode::Float),
+            6 => Ok(TypeCode::Double),
+            7 => Ok(TypeCode::Char),
+            8 => Ok(TypeCode::Bool),
+            9 => Ok(TypeCode::String),
+            10 => Ok(TypeCode::Uuid),
+            33 => Ok(TypeCode::Timestamp),
+            11 => Ok(TypeCode::Date),
+            36 => Ok(TypeCode::Time),
+            30 => Ok(TypeCode::Decimal),
+            28 => Ok(TypeCode::Enum),
+            12 => Ok(TypeCode::ArrByte),
+            13 => Ok(TypeCode::ArrShort),
+            14 => Ok(TypeCode::ArrInt),
+            15 => Ok(TypeCode::ArrLong),
+            16 => Ok(TypeCode::ArrFloat),
+            17 => Ok(TypeCode::ArrDouble),
+            18 => Ok(TypeCode::ArrChar),
+            19 => Ok(TypeCode::ArrBool),
+            20 => Ok(TypeCode::ArrString),
+            21 => Ok(TypeCode::ArrUuid),
+            34 => Ok(TypeCode::ArrTimestamp),
+            22 => Ok(TypeCode::ArrDate),
+            37 => Ok(TypeCode::ArrTime),
+            31 => Ok(TypeCode::ArrDecimal),
+            23 => Ok(TypeCode::ArrObj),
+            24 => Ok(TypeCode::Collection),
+            25 => Ok(TypeCode::Map),
+            29 => Ok(TypeCode::ArrEnum),
+            103 => Ok(TypeCode::ComplexObj),
+            27 => Ok(TypeCode::WrappedData),
+            38 => Ok(TypeCode::BinaryEnum),
+            101 => Ok(TypeCode::Null),
+            _ => Err(IgniteError::from("Cannot read TypeCode")),
+        }
+    }
 }
 
 /// Flag of general Response header
@@ -150,6 +199,14 @@ pub(crate) fn pack_bool(v: bool) -> Vec<u8> {
     }
 }
 
+pub(crate) fn read_char(reader: &mut impl Read) -> io::Result<bool> {
+    unimplemented!();
+}
+
+pub(crate) fn pack_char(v: char) -> Vec<u8> {
+    unimplemented!();
+}
+
 pub(crate) fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
@@ -196,4 +253,28 @@ pub(crate) fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
 
 pub(crate) fn pack_i64(v: i64) -> Vec<u8> {
     i64::to_le_bytes(v).to_vec()
+}
+
+pub(crate) fn read_f32(reader: &mut impl Read) -> io::Result<f32> {
+    let mut new_alloc = [0u8; 4];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(f32::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn pack_f32(v: f32) -> Vec<u8> {
+    f32::to_le_bytes(v).to_vec()
+}
+
+pub(crate) fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
+    let mut new_alloc = [0u8; 8];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(f64::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn pack_f64(v: f64) -> Vec<u8> {
+    f64::to_le_bytes(v).to_vec()
 }
