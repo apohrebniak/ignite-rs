@@ -166,5 +166,3 @@ impl Ignite for Client {
             .send_message(OpCode::CacheDestroy, CacheDestroyReq::from(name))
     }
 }
-
-pub struct IgniteObj;

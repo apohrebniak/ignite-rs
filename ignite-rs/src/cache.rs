@@ -11,7 +11,7 @@ use crate::cache::RebalanceMode::Async;
 use crate::cache::WriteSynchronizationMode::{FullAsync, FullSync, PrimarySync};
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{Pack, Unpack};
-use crate::{protocol, Ignite, IgniteObj};
+
 use std::marker::PhantomData;
 
 #[derive(Clone)]
@@ -268,11 +268,11 @@ impl<K: Pack + Unpack, V: Pack + Unpack> Cache<K, V> {
     }
 
     pub fn get(&self, key: K) -> IgniteResult<Option<V>> {
-        let req: CacheReq<K, V> = CacheReq::Get(0, key);
+        let _req: CacheReq<K, V> = CacheReq::Get(0, key);
         Ok(None)
     }
 
-    pub fn put(key: &K, value: &V) -> IgniteResult<()> {
+    pub fn put(_key: &K, _value: &V) -> IgniteResult<()> {
         Ok(())
     }
 }
