@@ -117,15 +117,6 @@ pub(crate) enum Flag {
     Failure { err_msg: String },
 }
 
-/// Implementations of this trait could be serialized into Ignite byte sequence
-pub trait Pack {
-    fn pack(self) -> Vec<u8>;
-}
-/// Implementations of this trait could be deserialized from Ignite byte sequence
-pub trait Unpack {
-    fn unpack(self) -> Vec<u8>;
-}
-
 /// Returns binary repr of standard request header
 pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: i16) -> Vec<u8> {
     let mut data = Vec::<u8>::new();
@@ -133,21 +124,6 @@ pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: i16) -> Vec<u8> 
     data.append(&mut pack_i16(op_code));
     data.append(&mut pack_i64(0)); //TODO: do smth with id
     data
-}
-
-/// Reads standard response header
-pub(crate) fn read_resp_header(reader: &mut impl Read) -> IgniteResult<Flag> {
-    let _ = read_i32(reader)?;
-    let _ = read_i64(reader)?;
-    match read_i32(reader)? {
-        0 => Ok(Success),
-        _ => {
-            let err_msg = read_string(reader)?;
-            Ok(Failure {
-                err_msg: err_msg.unwrap(),
-            })
-        }
-    }
 }
 
 pub(crate) fn read_string(reader: &mut impl Read) -> io::Result<Option<String>> {

@@ -5,8 +5,9 @@ use std::net::TcpStream;
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
 use crate::handshake::handshake;
-use crate::protocol::{new_req_header_bytes, read_resp_header, Flag, Pack};
-use crate::{protocol, ClientConfig};
+use crate::protocol::Flag::{Failure, Success};
+use crate::protocol::{new_req_header_bytes, read_i32, read_i64, read_string, Flag};
+use crate::{protocol, ClientConfig, Pack};
 
 const DEFAULT_BUFFER_SIZE_BYTES: usize = 1024;
 
@@ -52,9 +53,25 @@ impl Connection {
         }
 
         //read response
-        match read_resp_header(self.stream.get_mut())? {
+        match self.read_resp_header()? {
             Flag::Success => Ok(()),
             Flag::Failure { err_msg } => Err(IgniteError::from(err_msg.as_str())),
+        }
+    }
+
+    /// Reads standard response header
+    fn read_resp_header(&mut self) -> IgniteResult<Flag> {
+        let inner = &mut self.stream;
+        let _ = read_i32(inner)?;
+        let _ = read_i64(inner)?;
+        match read_i32(inner)? {
+            0 => Ok(Success),
+            _ => {
+                let err_msg = read_string(inner)?;
+                Ok(Failure {
+                    err_msg: err_msg.unwrap(),
+                })
+            }
         }
     }
 }
