@@ -1,12 +1,17 @@
 use crate::error::IgniteResult;
 use crate::protocol::TypeCode;
 use crate::protocol::{
-    read_bool, read_char, read_f32, read_f64, read_i16, read_i32, read_i64, read_string, read_u8,
-    Unpack,
-};
+    read_bool, read_char, read_f32, read_f64, read_i16, read_i32, read_i64, read_string, read_u8};
 use std::convert::TryFrom;
 use std::io;
 use std::io::Read;
+use crate::{Unpack, Pack};
+
+impl Pack for u8 {
+    fn pack(self) -> Vec<u8> {
+        unimplemented!()
+    }
+}
 
 impl Unpack for u8 {
     fn unpack(self) -> Vec<u8> {

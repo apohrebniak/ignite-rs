@@ -7,8 +7,8 @@ use crate::api::{OpCode, Response};
 use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
 use crate::error::IgniteResult;
-use crate::protocol::{Pack, Unpack};
 use crate::utils::string_to_java_hashcode;
+use std::sync::{Arc, Mutex};
 
 mod api;
 pub mod cache;
@@ -71,7 +71,7 @@ pub trait Ignite {
 /// Uses single blocking TCP connection
 pub struct Client {
     _conf: ClientConfig,
-    conn: Connection,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl Client {
@@ -79,7 +79,10 @@ impl Client {
         // make connection
         match Connection::new(&conf) {
             Ok(conn) => {
-                let client = Client { _conf: conf, conn };
+                let client = Client {
+                    _conf: conf,
+                    conn: Arc::new(Mutex::new(conn)),
+                };
                 Ok(client)
             }
             Err(err) => Err(err),
@@ -90,9 +93,9 @@ impl Client {
 //TODO: consider move generic logic when pooled client developments starts
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
-        self.conn
-            .send_message(OpCode::CacheGetNames, CacheGetNamesReq {})
-            .and_then(|_| CacheGetNamesResp::read_on_success(&mut self.conn))
+        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
+        sock.send_message(OpCode::CacheGetNames, CacheGetNamesReq {})
+            .and_then(|_| CacheGetNamesResp::read_on_success(sock))
             .map(|resp: CacheGetNamesResp| resp.names)
     }
 
@@ -100,69 +103,92 @@ impl Ignite for Client {
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send_message(
-                OpCode::CacheCreateWithName,
-                CacheCreateWithNameReq::from(name),
+        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
+        sock.send_message(
+            OpCode::CacheCreateWithName,
+            CacheCreateWithNameReq::from(name),
+        )
+        .map(|_| {
+            Cache::new(
+                string_to_java_hashcode(name),
+                name.to_owned(),
+                self.conn.clone(),
             )
-            .map(|_| Cache::new(string_to_java_hashcode(name), name.to_owned()))
+        })
     }
 
     fn get_or_create_cache<K: Pack + Unpack, V: Pack + Unpack>(
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send_message(
-                OpCode::CacheGetOrCreateWithName,
-                CacheGetOrCreateWithNameReq::from(name),
+        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
+        sock.send_message(
+            OpCode::CacheGetOrCreateWithName,
+            CacheGetOrCreateWithNameReq::from(name),
+        )
+        .map(|_| {
+            Cache::new(
+                string_to_java_hashcode(name),
+                name.to_owned(),
+                self.conn.clone(),
             )
-            .map(|_| Cache::new(string_to_java_hashcode(name), name.to_owned()))
+        })
     }
 
     fn create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send_message(
-                OpCode::CacheCreateWithConfiguration,
-                CacheCreateWithConfigReq { config },
+        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
+        sock.send_message(
+            OpCode::CacheCreateWithConfiguration,
+            CacheCreateWithConfigReq { config },
+        )
+        .map(|_| {
+            Cache::new(
+                string_to_java_hashcode(config.name.as_str()),
+                config.name.clone(),
+                self.conn.clone(),
             )
-            .map(|_| {
-                Cache::new(
-                    string_to_java_hashcode(config.name.as_str()),
-                    config.name.clone(),
-                )
-            })
+        })
     }
 
     fn get_or_create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send_message(
-                OpCode::CacheGetOrCreateWithConfiguration,
-                CacheGetOrCreateWithConfigReq { config },
+        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
+        sock.send_message(
+            OpCode::CacheGetOrCreateWithConfiguration,
+            CacheGetOrCreateWithConfigReq { config },
+        )
+        .map(|_| {
+            Cache::new(
+                string_to_java_hashcode(config.name.as_str()),
+                config.name.clone(),
+                self.conn.clone(),
             )
-            .map(|_| {
-                Cache::new(
-                    string_to_java_hashcode(config.name.as_str()),
-                    config.name.clone(),
-                )
-            })
+        })
     }
 
     fn get_cache_config(&mut self, name: &str) -> IgniteResult<CacheConfiguration> {
-        self.conn
-            .send_message(OpCode::CacheGetConfiguration, CacheGetConfigReq::from(name))
-            .and_then(|_| CacheGetConfigResp::read_on_success(&mut self.conn))
+        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
+        sock.send_message(OpCode::CacheGetConfiguration, CacheGetConfigReq::from(name))
+            .and_then(|_| CacheGetConfigResp::read_on_success(sock))
             .map(|resp| resp.config)
     }
 
     fn destroy_cache(&mut self, name: &str) -> IgniteResult<()> {
-        self.conn
-            .send_message(OpCode::CacheDestroy, CacheDestroyReq::from(name))
+        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
+        sock.send_message(OpCode::CacheDestroy, CacheDestroyReq::from(name))
     }
+}
+
+/// Implementations of this trait could be serialized into Ignite byte sequence
+pub trait Pack {
+    fn pack(self) -> Vec<u8>;
+}
+/// Implementations of this trait could be deserialized from Ignite byte sequence
+pub trait Unpack {
+    fn unpack(self) -> Vec<u8>;
 }
