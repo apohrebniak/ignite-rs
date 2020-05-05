@@ -1,4 +1,4 @@
-use crate::protocol::Pack;
+use crate::Pack;
 
 pub(crate) enum CacheReq<K: Pack, V: Pack> {
     Get(i32, K),

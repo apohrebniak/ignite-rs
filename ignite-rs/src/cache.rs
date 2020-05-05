@@ -10,9 +10,11 @@ use crate::cache::PartitionLossPolicy::{
 use crate::cache::RebalanceMode::Async;
 use crate::cache::WriteSynchronizationMode::{FullAsync, FullSync, PrimarySync};
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::{Pack, Unpack};
 
+use crate::connection::Connection;
 use std::marker::PhantomData;
+use std::sync::{Arc, Mutex};
+use crate::{Pack, Unpack};
 
 #[derive(Clone)]
 pub enum AtomicityMode {
@@ -253,15 +255,17 @@ pub struct QueryIndex {
 pub struct Cache<K: Pack + Unpack, V: Pack + Unpack> {
     _id: i32,
     pub _name: String,
+    conn: Arc<Mutex<Connection>>,
     k_phantom: PhantomData<K>,
     v_phantom: PhantomData<V>,
 }
 
 impl<K: Pack + Unpack, V: Pack + Unpack> Cache<K, V> {
-    pub(crate) fn new(id: i32, name: String) -> Cache<K, V> {
+    pub(crate) fn new(id: i32, name: String, conn: Arc<Mutex<Connection>>) -> Cache<K, V> {
         Cache {
             _id: id,
             _name: name,
+            conn,
             k_phantom: PhantomData,
             v_phantom: PhantomData,
         }
