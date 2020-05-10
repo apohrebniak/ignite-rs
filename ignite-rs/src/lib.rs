@@ -3,12 +3,14 @@ use crate::api::cache_config::{
     CacheGetConfigResp, CacheGetNamesReq, CacheGetNamesResp, CacheGetOrCreateWithConfigReq,
     CacheGetOrCreateWithNameReq,
 };
-use crate::api::{OpCode, Response};
+use crate::api::OpCode;
 use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
 use crate::error::IgniteResult;
 use crate::utils::string_to_java_hashcode;
 use std::sync::{Arc, Mutex};
+use std::io::Read;
+use crate::api::OpCode::CacheGetNames;
 
 mod api;
 pub mod cache;
@@ -71,7 +73,7 @@ pub trait Ignite {
 /// Uses single blocking TCP connection
 pub struct Client {
     _conf: ClientConfig,
-    conn: Arc<Mutex<Connection>>,
+    conn: Arc<Connection>,
 }
 
 impl Client {
@@ -81,7 +83,7 @@ impl Client {
             Ok(conn) => {
                 let client = Client {
                     _conf: conf,
-                    conn: Arc::new(Mutex::new(conn)),
+                    conn: Arc::new(conn),
                 };
                 Ok(client)
             }
@@ -93,18 +95,15 @@ impl Client {
 //TODO: consider move generic logic when pooled client developments starts
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
-        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
-        sock.send_message(OpCode::CacheGetNames, CacheGetNamesReq {})
-            .and_then(|_| CacheGetNamesResp::read_on_success(sock))
-            .map(|resp: CacheGetNamesResp| resp.names)
+        let resp: Box<CacheGetNamesResp> = self.conn.send_and_read(OpCode::CacheGetNames, CacheGetNamesReq {})?;
+        Ok(resp.names)
     }
 
     fn create_cache<K: Pack + Unpack, V: Pack + Unpack>(
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
-        sock.send_message(
+        self.conn.send(
             OpCode::CacheCreateWithName,
             CacheCreateWithNameReq::from(name),
         )
@@ -121,8 +120,7 @@ impl Ignite for Client {
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
-        sock.send_message(
+        self.conn.send(
             OpCode::CacheGetOrCreateWithName,
             CacheGetOrCreateWithNameReq::from(name),
         )
@@ -139,8 +137,7 @@ impl Ignite for Client {
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
-        sock.send_message(
+        self.conn.send(
             OpCode::CacheCreateWithConfiguration,
             CacheCreateWithConfigReq { config },
         )
@@ -157,8 +154,7 @@ impl Ignite for Client {
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
-        sock.send_message(
+        self.conn.send(
             OpCode::CacheGetOrCreateWithConfiguration,
             CacheGetOrCreateWithConfigReq { config },
         )
@@ -172,15 +168,12 @@ impl Ignite for Client {
     }
 
     fn get_cache_config(&mut self, name: &str) -> IgniteResult<CacheConfiguration> {
-        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
-        sock.send_message(OpCode::CacheGetConfiguration, CacheGetConfigReq::from(name))
-            .and_then(|_| CacheGetConfigResp::read_on_success(sock))
-            .map(|resp| resp.config)
+        let resp: Box<CacheGetConfigResp> = self.conn.send_and_read(OpCode::CacheGetConfiguration, CacheGetConfigReq::from(name))?;
+        Ok(resp.config)
     }
 
     fn destroy_cache(&mut self, name: &str) -> IgniteResult<()> {
-        let sock = &mut *self.conn.lock().unwrap(); //acquire socket lock
-        sock.send_message(OpCode::CacheDestroy, CacheDestroyReq::from(name))
+        self.conn.send(OpCode::CacheDestroy, CacheDestroyReq::from(name))
     }
 }
 
@@ -190,5 +183,5 @@ pub trait Pack {
 }
 /// Implementations of this trait could be deserialized from Ignite byte sequence
 pub trait Unpack {
-    fn unpack(self) -> Vec<u8>;
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>>;
 }
