@@ -44,7 +44,3 @@ impl Into<i16> for OpCode {
         self as i16
     }
 }
-
-pub(crate) trait Response: Sized {
-    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self>;
-}

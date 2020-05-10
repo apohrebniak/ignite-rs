@@ -1,12 +1,11 @@
 use std::io::Read;
 
-use crate::api::Response;
 use crate::cache::CacheConfiguration;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::cache_config::{pack_cache_configuration, read_cache_configuration};
 use crate::protocol::{pack_i32, pack_string, read_i32, read_string};
 use crate::utils::string_to_java_hashcode;
-use crate::Pack;
+use crate::{Pack, Unpack};
 
 /// Cache Get Names 1050
 pub(crate) struct CacheGetNamesReq {}
@@ -21,9 +20,8 @@ pub(crate) struct CacheGetNamesResp {
     pub(crate) names: Vec<String>,
 }
 
-impl Response for CacheGetNamesResp {
-    //TODO: string array?
-    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self> {
+impl Unpack for CacheGetNamesResp {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>> {
         // cache count
         let count = read_i32(reader)?;
 
@@ -35,7 +33,7 @@ impl Response for CacheGetNamesResp {
             };
         }
 
-        Ok(CacheGetNamesResp { names })
+        Ok(Box::new(CacheGetNamesResp { names }))
     }
 }
 
@@ -121,11 +119,11 @@ pub(crate) struct CacheGetConfigResp {
     pub(crate) config: CacheConfiguration,
 }
 
-impl Response for CacheGetConfigResp {
-    fn read_on_success(reader: &mut impl Read) -> IgniteResult<Self> {
+impl Unpack for CacheGetConfigResp {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>> {
         let _ = read_i32(reader)?;
         let config = read_cache_configuration(reader)?;
-        Ok(CacheGetConfigResp { config })
+        Ok(Box::new(CacheGetConfigResp { config }))
     }
 }
 
