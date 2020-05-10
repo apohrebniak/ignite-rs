@@ -255,13 +255,13 @@ pub struct QueryIndex {
 pub struct Cache<K: Pack + Unpack, V: Pack + Unpack> {
     _id: i32,
     pub _name: String,
-    conn: Arc<Mutex<Connection>>,
+    conn: Arc<Connection>,
     k_phantom: PhantomData<K>,
     v_phantom: PhantomData<V>,
 }
 
 impl<K: Pack + Unpack, V: Pack + Unpack> Cache<K, V> {
-    pub(crate) fn new(id: i32, name: String, conn: Arc<Mutex<Connection>>) -> Cache<K, V> {
+    pub(crate) fn new(id: i32, name: String, conn: Arc<Connection>) -> Cache<K, V> {
         Cache {
             _id: id,
             _name: name,
