@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::api::key_value::CacheReq;
+use crate::api::key_value::{CacheGetResp, CacheReq};
 use crate::cache::AtomicityMode::{Atomic, Transactional};
 use crate::cache::CacheMode::{Local, Partitioned, Replicated};
 use crate::cache::IndexType::{Fulltext, GeoSpatial, Sorted};
@@ -11,10 +11,11 @@ use crate::cache::RebalanceMode::Async;
 use crate::cache::WriteSynchronizationMode::{FullAsync, FullSync, PrimarySync};
 use crate::error::{IgniteError, IgniteResult};
 
+use crate::api::OpCode;
 use crate::connection::Connection;
+use crate::{PackType, UnpackType};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
-use crate::{Pack, Unpack};
 
 #[derive(Clone)]
 pub enum AtomicityMode {
@@ -115,6 +116,20 @@ impl TryFrom<i32> for WriteSynchronizationMode {
             2 => Ok(PrimarySync),
             _ => Err(IgniteError::from("Cannot read WriteSynchronizationMode")),
         }
+    }
+}
+
+#[derive(Clone)]
+pub enum CachePeekMode {
+    All = 0,
+    Near = 1,
+    Primary = 2,
+    Backup = 3,
+}
+
+impl Into<u8> for CachePeekMode {
+    fn into(self) -> u8 {
+        self as u8
     }
 }
 
@@ -252,18 +267,18 @@ pub struct QueryIndex {
 }
 
 /// Ignite key-value cache
-pub struct Cache<K: Pack + Unpack, V: Pack + Unpack> {
-    _id: i32,
+pub struct Cache<K: PackType + UnpackType, V: PackType + UnpackType> {
+    id: i32,
     pub _name: String,
     conn: Arc<Connection>,
     k_phantom: PhantomData<K>,
     v_phantom: PhantomData<V>,
 }
 
-impl<K: Pack + Unpack, V: Pack + Unpack> Cache<K, V> {
+impl<K: PackType + UnpackType, V: PackType + UnpackType> Cache<K, V> {
     pub(crate) fn new(id: i32, name: String, conn: Arc<Connection>) -> Cache<K, V> {
         Cache {
-            _id: id,
+            id,
             _name: name,
             conn,
             k_phantom: PhantomData,
@@ -272,11 +287,111 @@ impl<K: Pack + Unpack, V: Pack + Unpack> Cache<K, V> {
     }
 
     pub fn get(&self, key: K) -> IgniteResult<Option<V>> {
-        let _req: CacheReq<K, V> = CacheReq::Get(0, key);
-        Ok(None)
+        self.conn
+            .send_and_read(OpCode::CacheGet, CacheReq::Get::<K, V>(self.id, key))
+            .map(|resp: Box<CacheGetResp<V>>| resp.val)
     }
 
-    pub fn put(_key: &K, _value: &V) -> IgniteResult<()> {
-        Ok(())
+    pub fn get_all(&self, keys: Vec<K>) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn put(&self, key: K, value: V) -> IgniteResult<()> {
+        self.conn
+            .send(OpCode::CachePut, CacheReq::Put::<K, V>(self.id, key, value))
+    }
+
+    pub fn put_all(&self, pairs: Vec<(K, V)>) -> IgniteResult<()> {
+        self.conn.send(
+            OpCode::CachePutAll,
+            CacheReq::PutAll::<K, V>(self.id, pairs),
+        )
+    }
+
+    pub fn contains_key(&self, key: K) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn contains_keys(&self, keys: Vec<K>) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn get_and_put(&self, key: K, value: V) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn get_and_replace(&self, key: K, value: V) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn get_and_remove(&self, key: K) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn put_if_absent(&self, key: K, value: V) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn get_and_put_if_absent(&self, key: K, value: V) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn replace(&self, key: K, value: V) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn replace_if_equals(&self, key: K, old: V, new: V) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn clear(&self) -> IgniteResult<()> {
+        self.conn
+            .send(OpCode::CacheClear, CacheReq::Clear::<K, V>(self.id))
+    }
+
+    pub fn clear_key(&self, key: K) -> IgniteResult<()> {
+        self.conn.send(
+            OpCode::CacheClearKey,
+            CacheReq::ClearKey::<K, V>(self.id, key),
+        )
+    }
+
+    pub fn clear_keys(&self, keys: Vec<K>) -> IgniteResult<()> {
+        self.conn.send(
+            OpCode::CacheClearKeys,
+            CacheReq::ClearKeys::<K, V>(self.id, keys),
+        )
+    }
+
+    pub fn remove_key(&self, key: K) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn remove_if_equals(&self, key: K, value: V) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn get_size(&self) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn get_size_peek_mode(&self, mode: CachePeekMode) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn get_size_peek_modes(&self, mode: Vec<CachePeekMode>) -> IgniteResult<()> {
+        unimplemented!()
+    }
+
+    pub fn remove_keys(&self, keys: Vec<K>) -> IgniteResult<()> {
+        self.conn.send(
+            OpCode::CacheRemoveKeys,
+            CacheReq::RemoveKeys::<K, V>(self.id, keys),
+        )
+    }
+
+    pub fn remove_all(&self) -> IgniteResult<()> {
+        self.conn
+            .send(OpCode::CacheRemoveAll, CacheReq::RemoveAll::<K, V>(self.id))
     }
 }

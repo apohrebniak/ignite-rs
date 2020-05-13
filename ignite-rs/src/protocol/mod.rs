@@ -3,6 +3,7 @@ use std::io::{ErrorKind, Read};
 
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::Flag::{Failure, Success};
+use std::any::Any;
 use std::convert::TryFrom;
 
 pub(crate) mod cache_config;
@@ -253,4 +254,62 @@ pub(crate) fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
 
 pub(crate) fn pack_f64(v: f64) -> Vec<u8> {
     f64::to_le_bytes(v).to_vec()
+}
+
+pub(crate) fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
+    let mut bytes = vec![code as u8];
+    bytes.append(data);
+    bytes
+}
+
+pub(crate) fn read_data_obj(reader: &mut impl Read) -> IgniteResult<Option<Box<dyn Any>>> {
+    let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    let value: Option<Box<dyn Any>> = match type_code {
+        TypeCode::Byte => wrap(read_u8(reader)?),
+        TypeCode::Short => wrap(read_i16(reader)?),
+        TypeCode::Int => wrap(read_i32(reader)?),
+        TypeCode::Long => wrap(read_i64(reader)?),
+        TypeCode::Float => wrap(read_f32(reader)?),
+        TypeCode::Double => wrap(read_f64(reader)?),
+        TypeCode::Char => wrap(read_char(reader)?),
+        TypeCode::Bool => wrap(read_bool(reader)?),
+        TypeCode::String => wrap(read_string_TODO(reader)?),
+        TypeCode::Uuid => unimplemented!(),
+        TypeCode::Timestamp => unimplemented!(),
+        TypeCode::Date => unimplemented!(),
+        TypeCode::Time => unimplemented!(),
+        TypeCode::Decimal => unimplemented!(),
+        TypeCode::Enum => unimplemented!(),
+        TypeCode::ArrByte => unimplemented!(),
+        TypeCode::ArrShort => unimplemented!(),
+        TypeCode::ArrInt => unimplemented!(),
+        TypeCode::ArrLong => unimplemented!(),
+        TypeCode::ArrFloat => unimplemented!(),
+        TypeCode::ArrDouble => unimplemented!(),
+        TypeCode::ArrChar => unimplemented!(),
+        TypeCode::ArrBool => unimplemented!(),
+        TypeCode::ArrString => unimplemented!(),
+        TypeCode::ArrUuid => unimplemented!(),
+        TypeCode::ArrTimestamp => unimplemented!(),
+        TypeCode::ArrDate => unimplemented!(),
+        TypeCode::ArrTime => unimplemented!(),
+        TypeCode::ArrDecimal => unimplemented!(),
+        TypeCode::ArrObj => unimplemented!(),
+        TypeCode::Collection => unimplemented!(),
+        TypeCode::Map => unimplemented!(),
+        TypeCode::ArrEnum => unimplemented!(),
+        TypeCode::ComplexObj => unimplemented!(),
+        TypeCode::WrappedData => unimplemented!(),
+        TypeCode::BinaryEnum => unimplemented!(),
+        TypeCode::Null => None,
+    };
+    Ok(value)
+}
+
+fn wrap<T: 'static>(v: T) -> Option<Box<dyn Any>> {
+    Some(Box::new(v))
+}
+
+fn read_string_TODO(_: &mut impl Read) -> io::Result<String> {
+    Ok(String::new())
 }
