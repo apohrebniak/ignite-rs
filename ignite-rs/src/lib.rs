@@ -4,13 +4,13 @@ use crate::api::cache_config::{
     CacheGetOrCreateWithNameReq,
 };
 use crate::api::OpCode;
+use crate::api::OpCode::CacheGetNames;
 use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
 use crate::error::IgniteResult;
 use crate::utils::string_to_java_hashcode;
-use std::sync::{Arc, Mutex};
 use std::io::Read;
-use crate::api::OpCode::CacheGetNames;
+use std::sync::{Arc, Mutex};
 
 mod api;
 pub mod cache;
@@ -42,23 +42,23 @@ pub trait Ignite {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>;
     /// Creates a new cache with provided name and default configuration.
     /// Fails if cache with this name already exists
-    fn create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+    fn create_cache<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>>;
     /// Returns or creates a new cache with provided name and default configuration.
-    fn get_or_create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+    fn get_or_create_cache<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>>;
     /// Creates a new cache with provided configuration.
     /// Fails if cache with this name already exists
-    fn create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
+    fn create_cache_with_config<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>>;
     /// Creates a new cache with provided configuration.
-    fn get_or_create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
+    fn get_or_create_cache_with_config<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>>;
@@ -95,93 +95,113 @@ impl Client {
 //TODO: consider move generic logic when pooled client developments starts
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
-        let resp: Box<CacheGetNamesResp> = self.conn.send_and_read(OpCode::CacheGetNames, CacheGetNamesReq {})?;
+        let resp: Box<CacheGetNamesResp> = self
+            .conn
+            .send_and_read(OpCode::CacheGetNames, CacheGetNamesReq {})?;
         Ok(resp.names)
     }
 
-    fn create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+    fn create_cache<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn.send(
-            OpCode::CacheCreateWithName,
-            CacheCreateWithNameReq::from(name),
-        )
-        .map(|_| {
-            Cache::new(
-                string_to_java_hashcode(name),
-                name.to_owned(),
-                self.conn.clone(),
+        self.conn
+            .send(
+                OpCode::CacheCreateWithName,
+                CacheCreateWithNameReq::from(name),
             )
-        })
+            .map(|_| {
+                Cache::new(
+                    string_to_java_hashcode(name),
+                    name.to_owned(),
+                    self.conn.clone(),
+                )
+            })
     }
 
-    fn get_or_create_cache<K: Pack + Unpack, V: Pack + Unpack>(
+    fn get_or_create_cache<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn.send(
-            OpCode::CacheGetOrCreateWithName,
-            CacheGetOrCreateWithNameReq::from(name),
-        )
-        .map(|_| {
-            Cache::new(
-                string_to_java_hashcode(name),
-                name.to_owned(),
-                self.conn.clone(),
+        self.conn
+            .send(
+                OpCode::CacheGetOrCreateWithName,
+                CacheGetOrCreateWithNameReq::from(name),
             )
-        })
+            .map(|_| {
+                Cache::new(
+                    string_to_java_hashcode(name),
+                    name.to_owned(),
+                    self.conn.clone(),
+                )
+            })
     }
 
-    fn create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
+    fn create_cache_with_config<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn.send(
-            OpCode::CacheCreateWithConfiguration,
-            CacheCreateWithConfigReq { config },
-        )
-        .map(|_| {
-            Cache::new(
-                string_to_java_hashcode(config.name.as_str()),
-                config.name.clone(),
-                self.conn.clone(),
+        self.conn
+            .send(
+                OpCode::CacheCreateWithConfiguration,
+                CacheCreateWithConfigReq { config },
             )
-        })
+            .map(|_| {
+                Cache::new(
+                    string_to_java_hashcode(config.name.as_str()),
+                    config.name.clone(),
+                    self.conn.clone(),
+                )
+            })
     }
 
-    fn get_or_create_cache_with_config<K: Pack + Unpack, V: Pack + Unpack>(
+    fn get_or_create_cache_with_config<K: PackType + UnpackType, V: PackType + UnpackType>(
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn.send(
-            OpCode::CacheGetOrCreateWithConfiguration,
-            CacheGetOrCreateWithConfigReq { config },
-        )
-        .map(|_| {
-            Cache::new(
-                string_to_java_hashcode(config.name.as_str()),
-                config.name.clone(),
-                self.conn.clone(),
+        self.conn
+            .send(
+                OpCode::CacheGetOrCreateWithConfiguration,
+                CacheGetOrCreateWithConfigReq { config },
             )
-        })
+            .map(|_| {
+                Cache::new(
+                    string_to_java_hashcode(config.name.as_str()),
+                    config.name.clone(),
+                    self.conn.clone(),
+                )
+            })
     }
 
     fn get_cache_config(&mut self, name: &str) -> IgniteResult<CacheConfiguration> {
-        let resp: Box<CacheGetConfigResp> = self.conn.send_and_read(OpCode::CacheGetConfiguration, CacheGetConfigReq::from(name))?;
+        let resp: Box<CacheGetConfigResp> = self
+            .conn
+            .send_and_read(OpCode::CacheGetConfiguration, CacheGetConfigReq::from(name))?;
         Ok(resp.config)
     }
 
     fn destroy_cache(&mut self, name: &str) -> IgniteResult<()> {
-        self.conn.send(OpCode::CacheDestroy, CacheDestroyReq::from(name))
+        self.conn
+            .send(OpCode::CacheDestroy, CacheDestroyReq::from(name))
     }
 }
 
 /// Implementations of this trait could be serialized into Ignite byte sequence
-pub trait Pack {
+/// It is indented to be implemented by structs which represents requests
+pub(crate) trait Pack {
     fn pack(self) -> Vec<u8>;
 }
 /// Implementations of this trait could be deserialized from Ignite byte sequence
-pub trait Unpack {
+/// It is indented to be implemented by structs which represents requests. Acts as a closure
+/// for response handling
+pub(crate) trait Unpack {
     fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>>;
+}
+
+pub trait PackType {
+    fn pack(self) -> Vec<u8>;
+}
+
+pub trait UnpackType {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Box<Self>>>;
 }

@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{BufReader, Read, Write, BufWriter};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::net::TcpStream;
 
 use crate::api::OpCode;
@@ -22,7 +22,9 @@ impl Connection {
             Ok(stream) => {
                 let mut stream = BufReader::with_capacity(DEFAULT_BUFFER_SIZE_BYTES, stream);
                 match handshake(stream.get_mut(), protocol::VERSION) {
-                    Ok(_) => Ok(Connection {stream: Mutex::new(stream)}),
+                    Ok(_) => Ok(Connection {
+                        stream: Mutex::new(stream),
+                    }),
                     Err(err) => Err(err),
                 }
             }
@@ -37,13 +39,20 @@ impl Connection {
     }
 
     /// Send message, read response header and return a response
-    pub(crate) fn send_and_read<T: Unpack>(&self, op_code: OpCode, data: impl Pack) -> IgniteResult<Box<T>> {
+    pub(crate) fn send_and_read<T: Unpack>(
+        &self,
+        op_code: OpCode,
+        data: impl Pack,
+    ) -> IgniteResult<Box<T>> {
         let sock_lock = &mut *self.stream.lock().unwrap(); //acquire lock on socket
         Connection::send_and_read_safe(sock_lock, op_code, data)
     }
 
-    fn send_safe(buf: &mut BufReader<TcpStream>, op_code: OpCode, data: impl Pack) -> IgniteResult<()> {
-
+    fn send_safe(
+        buf: &mut BufReader<TcpStream>,
+        op_code: OpCode,
+        data: impl Pack,
+    ) -> IgniteResult<()> {
         let mut data = data.pack();
 
         //create header
@@ -63,7 +72,11 @@ impl Connection {
         }
     }
 
-    fn send_and_read_safe<T: Unpack>(buf: &mut BufReader<TcpStream>, op_code: OpCode, data: impl Pack) -> IgniteResult<Box<T>> {
+    fn send_and_read_safe<T: Unpack>(
+        buf: &mut BufReader<TcpStream>,
+        op_code: OpCode,
+        data: impl Pack,
+    ) -> IgniteResult<Box<T>> {
         Connection::send_safe(buf, op_code, data)?; //send request and read the response
         T::unpack(buf) //unpack the input bytes into an actual type
     }
