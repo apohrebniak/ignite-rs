@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::api::key_value::{CacheGetResp, CacheReq};
+use crate::api::key_value::{CacheDataObjectResp, CacheReq, CacheSizeResp};
 use crate::cache::AtomicityMode::{Atomic, Transactional};
 use crate::cache::CacheMode::{Local, Partitioned, Replicated};
 use crate::cache::IndexType::{Fulltext, GeoSpatial, Sorted};
@@ -289,7 +289,7 @@ impl<K: PackType + UnpackType, V: PackType + UnpackType> Cache<K, V> {
     pub fn get(&self, key: K) -> IgniteResult<Option<V>> {
         self.conn
             .send_and_read(OpCode::CacheGet, CacheReq::Get::<K, V>(self.id, key))
-            .map(|resp: Box<CacheGetResp<V>>| resp.val)
+            .map(|resp: Box<CacheDataObjectResp<V>>| resp.val)
     }
 
     pub fn get_all(&self, keys: Vec<K>) -> IgniteResult<()> {
@@ -371,16 +371,33 @@ impl<K: PackType + UnpackType, V: PackType + UnpackType> Cache<K, V> {
         unimplemented!()
     }
 
-    pub fn get_size(&self) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_size(&self) -> IgniteResult<i64> {
+        let modes = Vec::new();
+        self.conn
+            .send_and_read(
+                OpCode::CacheGetSize,
+                CacheReq::GetSize::<K, V>(self.id, modes),
+            )
+            .map(|resp: Box<CacheSizeResp>| resp.size)
     }
 
-    pub fn get_size_peek_mode(&self, mode: CachePeekMode) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_size_peek_mode(&self, mode: CachePeekMode) -> IgniteResult<i64> {
+        let modes = vec![mode];
+        self.conn
+            .send_and_read(
+                OpCode::CacheGetSize,
+                CacheReq::GetSize::<K, V>(self.id, modes),
+            )
+            .map(|resp: Box<CacheSizeResp>| resp.size)
     }
 
-    pub fn get_size_peek_modes(&self, mode: Vec<CachePeekMode>) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_size_peek_modes(&self, modes: Vec<CachePeekMode>) -> IgniteResult<i64> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheGetSize,
+                CacheReq::GetSize::<K, V>(self.id, modes),
+            )
+            .map(|resp: Box<CacheSizeResp>| resp.size)
     }
 
     pub fn remove_keys(&self, keys: Vec<K>) -> IgniteResult<()> {
