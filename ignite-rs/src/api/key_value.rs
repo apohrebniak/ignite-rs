@@ -1,6 +1,6 @@
 use crate::cache::CachePeekMode;
 use crate::error::IgniteResult;
-use crate::protocol::{pack_i32, pack_u8, read_data_obj};
+use crate::protocol::{pack_i32, pack_u8, read_bool, read_data_obj, read_i32, read_i64};
 use crate::{Pack, PackType, Unpack, UnpackType};
 use std::any::Any;
 use std::io::Read;
@@ -100,7 +100,7 @@ impl<K: PackType, V: PackType> Pack for CacheReq<K, V> {
                 let mut bytes: Vec<u8> = Vec::new();
                 bytes.append(&mut pack_i32(id));
                 bytes.append(&mut pack_u8(0)); //magic
-                bytes.append(&mut pack_i32(0));
+                bytes.append(&mut pack_i32(modes.len() as i32));
                 for mode in modes {
                     bytes.append(&mut pack_u8(mode.into()));
                 }
@@ -110,14 +110,52 @@ impl<K: PackType, V: PackType> Pack for CacheReq<K, V> {
     }
 }
 
-pub(crate) struct CacheGetResp<T: UnpackType> {
-    pub(crate) val: Option<T>,
+pub(crate) struct CacheDataObjectResp<V: UnpackType> {
+    pub(crate) val: Option<V>,
 }
 
-impl<T: UnpackType> Unpack for CacheGetResp<T> {
+impl<V: UnpackType> Unpack for CacheDataObjectResp<V> {
     fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>> {
-        let val = T::unpack(reader)?;
-        let val = val.map(|v| *v);
-        Ok(Box::new(CacheGetResp { val }))
+        let val = V::unpack(reader)?.map(|v| *v);
+        Ok(Box::new(CacheDataObjectResp { val }))
+    }
+}
+
+pub(crate) struct CachePairsResp<K: UnpackType, V: UnpackType> {
+    val: Vec<(Option<K>, Option<V>)>,
+}
+
+impl<K: UnpackType, V: UnpackType> Unpack for CachePairsResp<K, V> {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>> {
+        let count = read_i32(reader)?;
+        let mut pairs: Vec<(Option<K>, Option<V>)> = Vec::new();
+        for _ in 0..count {
+            let key = K::unpack(reader)?.map(|v| *v);
+            let val = V::unpack(reader)?.map(|v| *v);
+            pairs.push((key, val));
+        }
+        Ok(Box::new(CachePairsResp { val: pairs }))
+    }
+}
+
+pub(crate) struct CacheSizeResp {
+    pub(crate) size: i64,
+}
+
+impl Unpack for CacheSizeResp {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>> {
+        let size = read_i64(reader)?;
+        Ok(Box::new(CacheSizeResp { size }))
+    }
+}
+
+pub(crate) struct CacheBoolResp {
+    pub(crate) flag: bool,
+}
+
+impl Unpack for CacheBoolResp {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>> {
+        let flag = read_bool(reader)?;
+        Ok(Box::new(CacheBoolResp { flag }))
     }
 }

@@ -20,8 +20,10 @@ fn main() {
     hello.put(123, 222);
 
     println!("LOL {:?}", hello.get(123).unwrap());
+    println!("Size {:?}", hello.get_size().unwrap());
 
     hello.clear();
 
     println!("LOL {:?}", hello.get(123).unwrap());
+    println!("Size {:?}", hello.get_size().unwrap());
 }
