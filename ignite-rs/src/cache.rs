@@ -1,6 +1,8 @@
 use std::convert::TryFrom;
 
-use crate::api::key_value::{CacheDataObjectResp, CacheReq, CacheSizeResp};
+use crate::api::key_value::{
+    CacheBoolResp, CacheDataObjectResp, CachePairsResp, CacheReq, CacheSizeResp,
+};
 use crate::cache::AtomicityMode::{Atomic, Transactional};
 use crate::cache::CacheMode::{Local, Partitioned, Replicated};
 use crate::cache::IndexType::{Fulltext, GeoSpatial, Sorted};
@@ -292,8 +294,10 @@ impl<K: PackType + UnpackType, V: PackType + UnpackType> Cache<K, V> {
             .map(|resp: Box<CacheDataObjectResp<V>>| resp.val)
     }
 
-    pub fn get_all(&self, keys: Vec<K>) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_all(&self, keys: Vec<K>) -> IgniteResult<Vec<(Option<K>, Option<V>)>> {
+        self.conn
+            .send_and_read(OpCode::CacheGetAll, CacheReq::GetAll::<K, V>(self.id, keys))
+            .map(|resp: Box<CachePairsResp<K, V>>| resp.val)
     }
 
     pub fn put(&self, key: K, value: V) -> IgniteResult<()> {
@@ -308,40 +312,85 @@ impl<K: PackType + UnpackType, V: PackType + UnpackType> Cache<K, V> {
         )
     }
 
-    pub fn contains_key(&self, key: K) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn contains_key(&self, key: K) -> IgniteResult<bool> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheContainsKey,
+                CacheReq::ContainsKey::<K, V>(self.id, key),
+            )
+            .map(|resp: Box<CacheBoolResp>| resp.flag)
     }
 
-    pub fn contains_keys(&self, keys: Vec<K>) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn contains_keys(&self, keys: Vec<K>) -> IgniteResult<bool> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheContainsKeys,
+                CacheReq::ContainsKeys::<K, V>(self.id, keys),
+            )
+            .map(|resp: Box<CacheBoolResp>| resp.flag)
     }
 
-    pub fn get_and_put(&self, key: K, value: V) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_and_put(&self, key: K, value: V) -> IgniteResult<Option<V>> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheGetAndPut,
+                CacheReq::GetAndPut::<K, V>(self.id, key, value),
+            )
+            .map(|resp: Box<CacheDataObjectResp<V>>| resp.val)
     }
 
-    pub fn get_and_replace(&self, key: K, value: V) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_and_replace(&self, key: K, value: V) -> IgniteResult<Option<V>> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheGetAndReplace,
+                CacheReq::GetAndReplace::<K, V>(self.id, key, value),
+            )
+            .map(|resp: Box<CacheDataObjectResp<V>>| resp.val)
     }
 
-    pub fn get_and_remove(&self, key: K) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_and_remove(&self, key: K) -> IgniteResult<Option<V>> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheGetAndRemove,
+                CacheReq::GetAndRemove::<K, V>(self.id, key),
+            )
+            .map(|resp: Box<CacheDataObjectResp<V>>| resp.val)
     }
 
-    pub fn put_if_absent(&self, key: K, value: V) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn put_if_absent(&self, key: K, value: V) -> IgniteResult<bool> {
+        self.conn
+            .send_and_read(
+                OpCode::CachePutIfAbsent,
+                CacheReq::PutIfAbsent::<K, V>(self.id, key, value),
+            )
+            .map(|resp: Box<CacheBoolResp>| resp.flag)
     }
 
-    pub fn get_and_put_if_absent(&self, key: K, value: V) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn get_and_put_if_absent(&self, key: K, value: V) -> IgniteResult<Option<V>> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheGetAndPutIfAbsent,
+                CacheReq::GetAndPutIfAbsent::<K, V>(self.id, key, value),
+            )
+            .map(|resp: Box<CacheDataObjectResp<V>>| resp.val)
     }
 
-    pub fn replace(&self, key: K, value: V) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn replace(&self, key: K, value: V) -> IgniteResult<bool> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheReplace,
+                CacheReq::Replace::<K, V>(self.id, key, value),
+            )
+            .map(|resp: Box<CacheBoolResp>| resp.flag)
     }
 
-    pub fn replace_if_equals(&self, key: K, old: V, new: V) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn replace_if_equals(&self, key: K, old: V, new: V) -> IgniteResult<bool> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheReplaceIfEquals,
+                CacheReq::ReplaceIfEquals::<K, V>(self.id, key, old, new),
+            )
+            .map(|resp: Box<CacheBoolResp>| resp.flag)
     }
 
     pub fn clear(&self) -> IgniteResult<()> {
@@ -363,12 +412,22 @@ impl<K: PackType + UnpackType, V: PackType + UnpackType> Cache<K, V> {
         )
     }
 
-    pub fn remove_key(&self, key: K) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn remove_key(&self, key: K) -> IgniteResult<bool> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheRemoveKey,
+                CacheReq::RemoveKey::<K, V>(self.id, key),
+            )
+            .map(|resp: Box<CacheBoolResp>| resp.flag)
     }
 
-    pub fn remove_if_equals(&self, key: K, value: V) -> IgniteResult<()> {
-        unimplemented!()
+    pub fn remove_if_equals(&self, key: K, value: V) -> IgniteResult<bool> {
+        self.conn
+            .send_and_read(
+                OpCode::CacheRemoveIfEquals,
+                CacheReq::RemoveIfEquals::<K, V>(self.id, key, value),
+            )
+            .map(|resp: Box<CacheBoolResp>| resp.flag)
     }
 
     pub fn get_size(&self) -> IgniteResult<i64> {

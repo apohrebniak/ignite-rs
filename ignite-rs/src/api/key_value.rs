@@ -122,7 +122,7 @@ impl<V: UnpackType> Unpack for CacheDataObjectResp<V> {
 }
 
 pub(crate) struct CachePairsResp<K: UnpackType, V: UnpackType> {
-    val: Vec<(Option<K>, Option<V>)>,
+    pub(crate) val: Vec<(Option<K>, Option<V>)>,
 }
 
 impl<K: UnpackType, V: UnpackType> Unpack for CachePairsResp<K, V> {
