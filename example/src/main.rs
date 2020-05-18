@@ -17,13 +17,11 @@ fn main() {
         .get_or_create_cache_with_config::<u8, u8>(&my_cache_config)
         .unwrap();
 
-    hello.put(123, 222);
+    for i in 0..100u8 {
+        hello.put(i, i).unwrap()
+    }
 
-    println!("LOL {:?}", hello.get(123).unwrap());
-    println!("Size {:?}", hello.get_size().unwrap());
-
-    hello.clear();
-
-    println!("LOL {:?}", hello.get(123).unwrap());
-    println!("Size {:?}", hello.get_size().unwrap());
+    for i in 0..100u8 {
+        println!("GET {:?}", hello.get_and_remove(i).unwrap())
+    }
 }
