@@ -120,6 +120,7 @@ pub(crate) enum Flag {
 
 /// Returns binary repr of standard request header
 pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: i16) -> Vec<u8> {
+    //TODO: move to connection
     let mut data = Vec::<u8>::new();
     data.append(&mut pack_i32(payload_len as i32 + REQ_HEADER_SIZE_BYTES));
     data.append(&mut pack_i16(op_code));
@@ -176,14 +177,6 @@ pub(crate) fn pack_bool(v: bool) -> Vec<u8> {
     }
 }
 
-pub(crate) fn read_char(reader: &mut impl Read) -> io::Result<bool> {
-    unimplemented!();
-}
-
-pub(crate) fn pack_char(v: char) -> Vec<u8> {
-    unimplemented!();
-}
-
 pub(crate) fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
@@ -194,6 +187,18 @@ pub(crate) fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
 
 pub(crate) fn pack_u8(v: u8) -> Vec<u8> {
     u8::to_le_bytes(v).to_vec()
+}
+
+pub(crate) fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
+    let mut new_alloc = [0u8; 2];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(u16::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn pack_u16(v: u16) -> Vec<u8> {
+    u16::to_le_bytes(v).to_vec()
 }
 
 pub(crate) fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
@@ -260,54 +265,6 @@ pub(crate) fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
     let mut bytes = vec![code as u8];
     bytes.append(data);
     bytes
-}
-
-pub(crate) fn read_data_obj(reader: &mut impl Read) -> IgniteResult<Option<Box<dyn Any>>> {
-    let type_code = TypeCode::try_from(read_u8(reader)?)?;
-    let value: Option<Box<dyn Any>> = match type_code {
-        TypeCode::Byte => wrap(read_u8(reader)?),
-        TypeCode::Short => wrap(read_i16(reader)?),
-        TypeCode::Int => wrap(read_i32(reader)?),
-        TypeCode::Long => wrap(read_i64(reader)?),
-        TypeCode::Float => wrap(read_f32(reader)?),
-        TypeCode::Double => wrap(read_f64(reader)?),
-        TypeCode::Char => wrap(read_char(reader)?),
-        TypeCode::Bool => wrap(read_bool(reader)?),
-        TypeCode::String => wrap(read_string_TODO(reader)?),
-        TypeCode::Uuid => unimplemented!(),
-        TypeCode::Timestamp => unimplemented!(),
-        TypeCode::Date => unimplemented!(),
-        TypeCode::Time => unimplemented!(),
-        TypeCode::Decimal => unimplemented!(),
-        TypeCode::Enum => unimplemented!(),
-        TypeCode::ArrByte => unimplemented!(),
-        TypeCode::ArrShort => unimplemented!(),
-        TypeCode::ArrInt => unimplemented!(),
-        TypeCode::ArrLong => unimplemented!(),
-        TypeCode::ArrFloat => unimplemented!(),
-        TypeCode::ArrDouble => unimplemented!(),
-        TypeCode::ArrChar => unimplemented!(),
-        TypeCode::ArrBool => unimplemented!(),
-        TypeCode::ArrString => unimplemented!(),
-        TypeCode::ArrUuid => unimplemented!(),
-        TypeCode::ArrTimestamp => unimplemented!(),
-        TypeCode::ArrDate => unimplemented!(),
-        TypeCode::ArrTime => unimplemented!(),
-        TypeCode::ArrDecimal => unimplemented!(),
-        TypeCode::ArrObj => unimplemented!(),
-        TypeCode::Collection => unimplemented!(),
-        TypeCode::Map => unimplemented!(),
-        TypeCode::ArrEnum => unimplemented!(),
-        TypeCode::ComplexObj => unimplemented!(),
-        TypeCode::WrappedData => unimplemented!(),
-        TypeCode::BinaryEnum => unimplemented!(),
-        TypeCode::Null => None,
-    };
-    Ok(value)
-}
-
-fn wrap<T: 'static>(v: T) -> Option<Box<dyn Any>> {
-    Some(Box::new(v))
 }
 
 fn read_string_TODO(_: &mut impl Read) -> io::Result<String> {
