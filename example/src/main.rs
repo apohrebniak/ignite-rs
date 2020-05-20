@@ -1,4 +1,4 @@
-use ignite_rs::cache::CacheConfiguration;
+use ignite_rs::cache::{Cache, CacheConfiguration};
 use ignite_rs::{ClientConfig, Ignite};
 
 fn main() {
@@ -24,4 +24,17 @@ fn main() {
     for i in 0..100u8 {
         println!("GET {:?}", hello.get_and_remove(i).unwrap())
     }
+
+    ignite
+        .get_or_create_cache("lol")
+        .unwrap()
+        .put_all(vec![(58u16, 59u16)])
+        .unwrap();
+    println!(
+        "lol: {:?}",
+        ignite
+            .get_or_create_cache("lol")
+            .and_then(|c: Cache<u16, u16>| c.get(58u16))
+            .unwrap()
+    );
 }
