@@ -1,6 +1,6 @@
 use crate::cache::CachePeekMode;
 use crate::error::IgniteResult;
-use crate::protocol::{pack_i32, pack_u8, read_bool, read_data_obj, read_i32, read_i64};
+use crate::protocol::{pack_i32, pack_u8, read_bool, read_i32, read_i64};
 use crate::{Pack, PackType, Unpack, UnpackType};
 use std::any::Any;
 use std::io::Read;
@@ -116,7 +116,7 @@ pub(crate) struct CacheDataObjectResp<V: UnpackType> {
 
 impl<V: UnpackType> Unpack for CacheDataObjectResp<V> {
     fn unpack(reader: &mut impl Read) -> IgniteResult<Box<Self>> {
-        let val = V::unpack(reader)?.map(|v| *v);
+        let val = V::unpack(reader)?;
         Ok(Box::new(CacheDataObjectResp { val }))
     }
 }
@@ -130,8 +130,8 @@ impl<K: UnpackType, V: UnpackType> Unpack for CachePairsResp<K, V> {
         let count = read_i32(reader)?;
         let mut pairs: Vec<(Option<K>, Option<V>)> = Vec::new();
         for _ in 0..count {
-            let key = K::unpack(reader)?.map(|v| *v);
-            let val = V::unpack(reader)?.map(|v| *v);
+            let key = K::unpack(reader)?;
+            let val = V::unpack(reader)?;
             pairs.push((key, val));
         }
         Ok(Box::new(CachePairsResp { val: pairs }))

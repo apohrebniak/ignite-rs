@@ -202,6 +202,6 @@ pub trait PackType {
     fn pack(self) -> Vec<u8>;
 }
 
-pub trait UnpackType {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Box<Self>>>;
+pub trait UnpackType: Sized {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>>;
 }
