@@ -128,37 +128,45 @@ pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: i16) -> Vec<u8> 
     data
 }
 
-pub(crate) fn read_string(reader: &mut impl Read) -> io::Result<Option<String>> {
-    //TODO: move to 'read object'
-    let type_code = read_u8(reader)?;
-
-    if TypeCode::Null as u8 == type_code {
-        return Ok(None);
-    }
-
-    if TypeCode::String as u8 != type_code {
-        return Err(io::Error::new(ErrorKind::InvalidInput, "string expected"));
-    }
-
-    let str_len = read_i32(reader)?;
-
-    let mut new_alloc = vec![0u8; str_len as usize];
-    match reader.read_exact(new_alloc.as_mut_slice()) {
-        Ok(_) => match String::from_utf8(new_alloc) {
-            Ok(s) => Ok(Some(s)),
-            Err(err) => Err(io::Error::new(ErrorKind::InvalidData, err)),
-        },
-        Err(err) => Err(err),
-    }
+pub(crate) fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
+    let mut bytes = vec![code as u8];
+    bytes.append(data);
+    bytes
 }
 
-pub(crate) fn pack_string(value: &str) -> Vec<u8> {
+/// This function is basically a String's PackType implementation but for &str.
+/// It should be used only for strings in request bodies (like cache creation, configuration etc.)
+/// not for KV (a.k.a DataObject)
+pub(crate) fn pack_str(value: &str) -> Vec<u8> {
     let value_bytes = value.as_bytes();
     let mut bytes = Vec::<u8>::new();
     bytes.push(TypeCode::String as u8);
     bytes.append(&mut pack_i32(value_bytes.len() as i32));
     bytes.extend_from_slice(&value_bytes);
     bytes
+}
+
+//// Read functions. No TypeCode, no NULL checking
+
+pub(crate) fn pack_string(value: String) -> Vec<u8> {
+    let value_bytes = value.as_bytes();
+    let mut bytes = Vec::<u8>::new();
+    bytes.append(&mut pack_i32(value_bytes.len() as i32));
+    bytes.extend_from_slice(&value_bytes);
+    bytes
+}
+
+pub(crate) fn read_string(reader: &mut impl Read) -> io::Result<String> {
+    let str_len = read_i32(reader)?;
+
+    let mut new_alloc = vec![0u8; str_len as usize];
+    match reader.read_exact(new_alloc.as_mut_slice()) {
+        Ok(_) => match String::from_utf8(new_alloc) {
+            Ok(s) => Ok(s),
+            Err(err) => Err(io::Error::new(ErrorKind::InvalidData, err)),
+        },
+        Err(err) => Err(err),
+    }
 }
 
 pub(crate) fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
@@ -259,14 +267,4 @@ pub(crate) fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
 
 pub(crate) fn pack_f64(v: f64) -> Vec<u8> {
     f64::to_le_bytes(v).to_vec()
-}
-
-pub(crate) fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
-    let mut bytes = vec![code as u8];
-    bytes.append(data);
-    bytes
-}
-
-fn read_string_TODO(_: &mut impl Read) -> io::Result<String> {
-    Ok(String::new())
 }

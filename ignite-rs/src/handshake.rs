@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 
+use crate::UnpackType;
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{pack_i16, pack_i32, read_i16, read_i32, read_string, read_u8, Version};
@@ -44,7 +45,7 @@ fn read_handshake_err<T: Read + Write>(conn: &mut T) -> IgniteResult<String> {
     let major_v = read_i16(conn)?;
     let minor_v = read_i16(conn)?;
     let patch_v = read_i16(conn)?;
-    let err_msg = read_string(conn)?;
+    let err_msg = String::unpack(conn)?;
 
     Ok(format!(
         "Handshake error: v{}.{}.{} err: {}",
