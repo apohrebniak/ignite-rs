@@ -8,33 +8,16 @@ fn main() {
     let mut ignite = ignite_rs::new_client(client_config).unwrap();
 
     if let Ok(names) = ignite.get_cache_names() {
-        println!("{:?}", names)
+        println!("ALL caches: {:?}", names)
     }
 
+    ignite.destroy_cache("HELLO");
     let my_cache_config = CacheConfiguration::new("HELLO");
 
     let hello = ignite
-        .get_or_create_cache_with_config::<u8, u8>(&my_cache_config)
+        .get_or_create_cache_with_config::<String, String>(&my_cache_config)
         .unwrap();
 
-    for i in 0..100u8 {
-        hello.put(i, i).unwrap()
-    }
-
-    for i in 0..100u8 {
-        println!("GET {:?}", hello.get_and_remove(i).unwrap())
-    }
-
-    ignite
-        .get_or_create_cache("lol")
-        .unwrap()
-        .put_all(vec![(58u16, 59u16)])
-        .unwrap();
-    println!(
-        "lol: {:?}",
-        ignite
-            .get_or_create_cache("lol")
-            .and_then(|c: Cache<u16, u16>| c.get(58u16))
-            .unwrap()
-    );
+    hello.put("greeting".into(), "Hello World!".into()).unwrap();
+    println!("{:?}", hello.get("greeting".into()).unwrap());
 }

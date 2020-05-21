@@ -6,11 +6,12 @@ use std::any::Any;
 use std::io::Read;
 use std::convert::TryFrom;
 
-macro_rules! pack_primitive {
+/// Ignite's 'char' is a UTF-16 code UNIT, which means its size is 2 bytes.
+/// As Rust's 'char' is a Unicode scalar value (a.k.a UTF-32 code unit) and has 4 bytes,
+/// I don't see how the API should be properly implemented. u16 is used for now
+
+macro_rules! pack_simple_type {
     ($t:ty, $code:path, $pack_fn:ident) => {
-        /// Ignite's 'char' is a UTF-16 code UNIT, which means its size is 2 bytes.
-        /// As Rust's 'char' is a Unicode scalar value (a.k.a UTF-32 code unit) and has 4 bytes,
-        /// I don't see how the API should be properly implemented. u16 is used for now
         impl PackType for $t {
             fn pack(self) -> Vec<u8> {
                 pack_data_obj($code, &mut $pack_fn(self))
@@ -19,16 +20,17 @@ macro_rules! pack_primitive {
     };
 }
 
-pack_primitive!(u8, TypeCode::Byte, pack_u8);
-pack_primitive!(i16, TypeCode::Short, pack_i16);
-pack_primitive!(i32, TypeCode::Int, pack_i32);
-pack_primitive!(i64, TypeCode::Long, pack_i64);
-pack_primitive!(f32, TypeCode::Float, pack_f32);
-pack_primitive!(f64, TypeCode::Double, pack_f64);
-pack_primitive!(bool, TypeCode::Bool, pack_bool);
-pack_primitive!(u16, TypeCode::Char, pack_u16);
+pack_simple_type!(u8, TypeCode::Byte, pack_u8);
+pack_simple_type!(i16, TypeCode::Short, pack_i16);
+pack_simple_type!(i32, TypeCode::Int, pack_i32);
+pack_simple_type!(i64, TypeCode::Long, pack_i64);
+pack_simple_type!(f32, TypeCode::Float, pack_f32);
+pack_simple_type!(f64, TypeCode::Double, pack_f64);
+pack_simple_type!(bool, TypeCode::Bool, pack_bool);
+pack_simple_type!(u16, TypeCode::Char, pack_u16);
+pack_simple_type!(String, TypeCode::String, pack_string);
 
-macro_rules! unpack_primitive {
+macro_rules! unpack_simple_type {
     ($t:ty, $unpack_fn:ident) => {
         impl UnpackType for $t {
             fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
@@ -43,11 +45,12 @@ macro_rules! unpack_primitive {
     };
 }
 
-unpack_primitive!(u8, read_u8);
-unpack_primitive!(u16, read_u16);
-unpack_primitive!(i16, read_i16);
-unpack_primitive!(i32, read_i32);
-unpack_primitive!(i64, read_i64);
-unpack_primitive!(f32, read_f32);
-unpack_primitive!(f64, read_f64);
-unpack_primitive!(bool, read_bool);
+unpack_simple_type!(u8, read_u8);
+unpack_simple_type!(u16, read_u16);
+unpack_simple_type!(i16, read_i16);
+unpack_simple_type!(i32, read_i32);
+unpack_simple_type!(i64, read_i64);
+unpack_simple_type!(f32, read_f32);
+unpack_simple_type!(f64, read_f64);
+unpack_simple_type!(bool, read_bool);
+unpack_simple_type!(String, read_string);

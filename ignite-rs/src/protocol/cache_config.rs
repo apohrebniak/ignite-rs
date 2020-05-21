@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::io::Read;
 
+use crate::{UnpackType, PackType};
 use crate::cache::{
     AtomicityMode, CacheMode, IndexType, PartitionLossPolicy, RebalanceMode,
     WriteSynchronizationMode,
@@ -12,7 +13,7 @@ use crate::error::IgniteError;
 use crate::error::IgniteResult;
 use crate::protocol::cache_config::ConfigPropertyCode::*;
 use crate::protocol::{
-    pack_bool, pack_i16, pack_i32, pack_i64, pack_string, pack_u8, read_bool, read_i32, read_i64,
+    pack_bool, pack_i16, pack_i32, pack_i64, pack_str, pack_u8, read_bool, read_i32, read_i64,
     read_string, read_u8,
 };
 
@@ -65,7 +66,7 @@ pub(crate) fn pack_cache_configuration(config: &CacheConfiguration) -> Vec<u8> {
 
     payload.append(&mut pack_cache_config_property(
         Name,
-        pack_string(config.name.as_str()),
+        pack_str(config.name.as_str()),
     ));
     payload.append(&mut pack_cache_config_property(
         CacheAtomicityMode,
@@ -172,21 +173,21 @@ pub(crate) fn pack_cache_configuration(config: &CacheConfiguration) -> Vec<u8> {
     if let Some(ref v) = config.data_region_name {
         payload.append(&mut pack_cache_config_property(
             DataRegionName,
-            pack_string(v.as_str()),
+            pack_str(v.as_str()),
         ));
         config_param_len += 1;
     }
     if let Some(ref v) = config.group_name {
         payload.append(&mut pack_cache_config_property(
             GroupName,
-            pack_string(v.as_str()),
+            pack_str(v.as_str()),
         ));
         config_param_len += 1;
     }
     if let Some(ref v) = config.sql_schema {
         payload.append(&mut pack_cache_config_property(
             SqlSchema,
-            pack_string(v.as_str()),
+            pack_str(v.as_str()),
         ));
         config_param_len += 1;
     }
@@ -228,14 +229,14 @@ pub(crate) fn read_cache_configuration(reader: &mut impl Read) -> IgniteResult<C
         num_backup: read_i32(reader)?,
         cache_mode: CacheMode::try_from(read_i32(reader)?)?,
         copy_on_read: read_bool(reader)?,
-        data_region_name: read_string(reader)?,
+        data_region_name: String::unpack(reader)?,
         eager_ttl: read_bool(reader)?,
         statistics_enabled: read_bool(reader)?,
-        group_name: read_string(reader)?,
+        group_name: String::unpack(reader)?,
         default_lock_timeout_ms: read_i64(reader)?,
         max_concurrent_async_operations: read_i32(reader)?,
         max_query_iterators: read_i32(reader)?,
-        name: read_string(reader)?.ok_or_else(|| IgniteError::from("name is required"))?,
+        name: String::unpack(reader)?.ok_or_else(|| IgniteError::from("name is required"))?,
         onheap_cache_enabled: read_bool(reader)?,
         partition_loss_policy: PartitionLossPolicy::try_from(read_i32(reader)?)?,
         query_detail_metrics_size: read_i32(reader)?,
@@ -250,7 +251,7 @@ pub(crate) fn read_cache_configuration(reader: &mut impl Read) -> IgniteResult<C
         rebalance_timeout_ms: read_i64(reader)?,
         sql_escape_all: read_bool(reader)?,
         sql_index_max_size: read_i32(reader)?,
-        sql_schema: read_string(reader)?,
+        sql_schema: String::unpack(reader)?,
         write_synchronization_mode: WriteSynchronizationMode::try_from(read_i32(reader)?)?,
         cache_key_configurations: Some(read_cache_key_configs(reader)?),
         query_entities: Some(read_query_entities(reader)?),
@@ -262,8 +263,8 @@ fn read_cache_key_configs(reader: &mut impl Read) -> IgniteResult<Vec<CacheKeyCo
     let count = read_i32(reader)?;
     let mut result = Vec::<CacheKeyConfiguration>::new();
     for _ in 0..count {
-        let type_name = read_string(reader)?.unwrap();
-        let affinity_key_field_name = read_string(reader)?.unwrap();
+        let type_name = String::unpack(reader)?.unwrap();
+        let affinity_key_field_name = String::unpack(reader)?.unwrap();
         result.push(CacheKeyConfiguration {
             type_name,
             affinity_key_field_name,
@@ -276,8 +277,8 @@ fn pack_cache_key_configs(configs: &[CacheKeyConfiguration]) -> Vec<u8> {
     // combine configurations
     let mut payload = Vec::<u8>::new();
     for conf in configs.iter() {
-        payload.append(&mut pack_string(conf.type_name.as_str()));
-        payload.append(&mut pack_string(conf.affinity_key_field_name.as_str()));
+        payload.append(&mut pack_str(conf.type_name.as_str()));
+        payload.append(&mut pack_str(conf.affinity_key_field_name.as_str()));
     }
     // add cound
     let mut bytes = Vec::<u8>::new();
@@ -290,11 +291,11 @@ fn read_query_entities(reader: &mut impl Read) -> IgniteResult<Vec<QueryEntity>>
     let count = read_i32(reader)?;
     let mut result = Vec::<QueryEntity>::new();
     for _ in 0..count {
-        let key_type = read_string(reader)?.unwrap();
-        let value_type = read_string(reader)?.unwrap();
-        let table = read_string(reader)?.unwrap();
-        let key_field = read_string(reader)?.unwrap();
-        let value_field = read_string(reader)?.unwrap();
+        let key_type = String::unpack(reader)?.unwrap();
+        let value_type = String::unpack(reader)?.unwrap();
+        let table = String::unpack(reader)?.unwrap();
+        let key_field = String::unpack(reader)?.unwrap();
+        let value_field = String::unpack(reader)?.unwrap();
         let query_fields = read_query_fields(reader)?;
         let field_aliases = read_query_field_aliases(reader)?;
         let query_indexes = read_query_indexes(reader)?;
@@ -316,11 +317,11 @@ fn read_query_entities(reader: &mut impl Read) -> IgniteResult<Vec<QueryEntity>>
 fn pack_query_entities(entities: &[QueryEntity]) -> Vec<u8> {
     let mut payload: Vec<u8> = Vec::new();
     for entity in entities.iter() {
-        payload.append(&mut pack_string(entity.key_type.as_str()));
-        payload.append(&mut pack_string(entity.value_type.as_str()));
-        payload.append(&mut pack_string(entity.table.as_str()));
-        payload.append(&mut pack_string(entity.key_field.as_str()));
-        payload.append(&mut pack_string(entity.value_field.as_str()));
+        payload.append(&mut pack_str(entity.key_type.as_str()));
+        payload.append(&mut pack_str(entity.value_type.as_str()));
+        payload.append(&mut pack_str(entity.table.as_str()));
+        payload.append(&mut pack_str(entity.key_field.as_str()));
+        payload.append(&mut pack_str(entity.value_field.as_str()));
         payload.append(&mut pack_query_fields(&entity.query_fields));
         payload.append(&mut pack_field_aliases(&entity.field_aliases));
         payload.append(&mut pack_query_indexes(&entity.query_indexes));
@@ -335,8 +336,8 @@ fn read_query_fields(reader: &mut impl Read) -> IgniteResult<Vec<QueryField>> {
     let count = read_i32(reader)?;
     let mut result = Vec::<QueryField>::new();
     for _ in 0..count {
-        let name = read_string(reader)?.unwrap();
-        let type_name = read_string(reader)?.unwrap();
+        let name = String::unpack(reader)?.unwrap();
+        let type_name = String::unpack(reader)?.unwrap();
         let key_field = read_bool(reader)?;
         let not_null_constraint = read_bool(reader)?;
         result.push(QueryField {
@@ -352,8 +353,8 @@ fn read_query_fields(reader: &mut impl Read) -> IgniteResult<Vec<QueryField>> {
 fn pack_query_fields(fields: &[QueryField]) -> Vec<u8> {
     let mut payload: Vec<u8> = Vec::new();
     for field in fields.iter() {
-        payload.append(&mut pack_string(field.name.as_str()));
-        payload.append(&mut pack_string(field.type_name.as_str()));
+        payload.append(&mut pack_str(field.name.as_str()));
+        payload.append(&mut pack_str(field.type_name.as_str()));
         payload.append(&mut pack_bool(field.key_field));
         payload.append(&mut pack_bool(field.not_null_constraint));
     }
@@ -367,8 +368,8 @@ fn read_query_field_aliases(reader: &mut impl Read) -> IgniteResult<Vec<(String,
     let count = read_i32(reader)?;
     let mut result = Vec::<(String, String)>::new();
     for _ in 0..count {
-        let name = read_string(reader)?.unwrap();
-        let alias = read_string(reader)?.unwrap();
+        let name = String::unpack(reader)?.unwrap();
+        let alias = String::unpack(reader)?.unwrap();
         result.push((name, alias))
     }
     Ok(result)
@@ -377,8 +378,8 @@ fn read_query_field_aliases(reader: &mut impl Read) -> IgniteResult<Vec<(String,
 fn pack_field_aliases(aliases: &[(String, String)]) -> Vec<u8> {
     let mut payload: Vec<u8> = Vec::new();
     for alias in aliases.iter() {
-        payload.append(&mut pack_string(alias.0.as_str()));
-        payload.append(&mut pack_string(alias.1.as_str()));
+        payload.append(&mut pack_str(alias.0.as_str()));
+        payload.append(&mut pack_str(alias.1.as_str()));
     }
     let mut bytes: Vec<u8> = Vec::new();
     bytes.append(&mut pack_i32(aliases.len() as i32));
@@ -390,7 +391,7 @@ fn read_query_indexes(reader: &mut impl Read) -> IgniteResult<Vec<QueryIndex>> {
     let count = read_i32(reader)?;
     let mut result = Vec::<QueryIndex>::new();
     for _ in 0..count {
-        let index_name = read_string(reader)?.unwrap();
+        let index_name = String::unpack(reader)?.unwrap();
         let index_type = IndexType::try_from(read_u8(reader)?)?;
         let inline_size = read_i32(reader)?;
         let fields = read_query_index_fields(reader)?;
@@ -407,7 +408,7 @@ fn read_query_indexes(reader: &mut impl Read) -> IgniteResult<Vec<QueryIndex>> {
 fn pack_query_indexes(indexes: &[QueryIndex]) -> Vec<u8> {
     let mut payload: Vec<u8> = Vec::new();
     for index in indexes.iter() {
-        payload.append(&mut pack_string(index.index_name.as_str()));
+        payload.append(&mut pack_str(index.index_name.as_str()));
         payload.append(&mut pack_u8(index.index_type.clone() as u8));
         payload.append(&mut pack_i32(index.inline_size));
         payload.append(&mut pack_query_index_fields(&index.fields));
@@ -422,7 +423,7 @@ fn read_query_index_fields(reader: &mut impl Read) -> IgniteResult<Vec<(String, 
     let count = read_i32(reader)?;
     let mut result = Vec::<(String, bool)>::new();
     for _ in 0..count {
-        let name = read_string(reader)?.unwrap();
+        let name = String::unpack(reader)?.unwrap();
         let is_descending = read_bool(reader)?;
         result.push((name, is_descending))
     }
@@ -432,7 +433,7 @@ fn read_query_index_fields(reader: &mut impl Read) -> IgniteResult<Vec<(String, 
 fn pack_query_index_fields(fields: &[(String, bool)]) -> Vec<u8> {
     let mut payload: Vec<u8> = Vec::new();
     for index in fields.iter() {
-        payload.append(&mut pack_string(index.0.as_str()));
+        payload.append(&mut pack_str(index.0.as_str()));
         payload.append(&mut pack_bool(index.1));
     }
     let mut bytes: Vec<u8> = Vec::new();

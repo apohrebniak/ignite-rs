@@ -2,6 +2,7 @@ use std::io;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::net::TcpStream;
 
+use crate::UnpackType;
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
 use crate::handshake::handshake;
@@ -96,7 +97,7 @@ impl Connection {
         match read_i32(reader)? {
             0 => Ok(Success),
             _ => {
-                let err_msg = read_string(reader)?;
+                let err_msg = String::unpack(reader)?;
                 Ok(Failure {
                     err_msg: err_msg.unwrap(),
                 })

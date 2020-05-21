@@ -3,9 +3,9 @@ use std::io::Read;
 use crate::cache::CacheConfiguration;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::cache_config::{pack_cache_configuration, read_cache_configuration};
-use crate::protocol::{pack_i32, pack_string, read_i32, read_string};
+use crate::protocol::{pack_i32, pack_str, read_i32};
 use crate::utils::string_to_java_hashcode;
-use crate::{Pack, Unpack};
+use crate::{Pack, Unpack, PackType, UnpackType};
 
 /// Cache Get Names 1050
 pub(crate) struct CacheGetNamesReq {}
@@ -27,7 +27,7 @@ impl Unpack for CacheGetNamesResp {
 
         let mut names = Vec::<String>::new();
         for _ in 0..count {
-            match read_string(reader)? {
+            match String::unpack(reader)? {
                 None => return Err(IgniteError::from("NULL is not expected")),
                 Some(n) => names.push(n),
             };
@@ -50,7 +50,7 @@ impl CacheCreateWithNameReq<'_> {
 
 impl Pack for CacheCreateWithNameReq<'_> {
     fn pack(self) -> Vec<u8> {
-        pack_string(self.name)
+        pack_str(self.name)
     }
 }
 
@@ -67,7 +67,7 @@ impl CacheGetOrCreateWithNameReq<'_> {
 
 impl Pack for CacheGetOrCreateWithNameReq<'_> {
     fn pack(self) -> Vec<u8> {
-        pack_string(self.name)
+        pack_str(self.name)
     }
 }
 
