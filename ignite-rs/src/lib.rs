@@ -205,3 +205,61 @@ pub trait PackType {
 pub trait UnpackType: Sized {
     fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>>;
 }
+
+#[derive(Debug)]
+#[allow(dead_code)]
+///A universally unique identifier (UUID) is a 128-bit number used to identify information in computer systems.
+pub struct Uuid {
+    ///64-bit number in little endian, representing 64 most significant bits of UUID.
+    pub most_significant_bits: u64,
+    ///64-bit number in little endian, representing 64 least significant bits of UUID.
+    pub least_significant_bits: u64,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct Timestamp {
+    /// Number of milliseconds elapsed since 00:00:00 1 Jan 1970 UTC.
+    /// This format widely known as a Unix or POSIX time.
+    pub msecs_since_epoch: i64,
+    /// Nanosecond fraction of a millisecond.
+    pub msec_fraction_in_nsecs: i32,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+///Date, represented as a number of milliseconds elapsed since 00:00:00 1 Jan 1970 UTC.
+///This format widely known as a Unix or POSIX time.
+pub struct Date {
+    pub msecs_since_epoch: i64,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+///Time, represented as a number of milliseconds elapsed since midnight, i.e. 00:00:00 UTC.
+pub struct Time {
+    ///Number of milliseconds elapsed since 00:00:00 UTC.
+    pub value: i64,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+///Numeric value of any desired precision and scale.
+pub struct Decimal {
+    ///Effectively, a power of the ten, on which the unscaled value should be divided.
+    ///For example, 42 with scale 3 is 0.042, 42 with scale -3 is 42000, and 42 with scale 1 is 42.
+    pub scale: i32,
+    ///First bit is the flag of negativity. If it's set to 1, then value is negative.
+    ///Other bits form signed integer number of variable length in big-endian format.
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+///Value of an enumerable type. For such types defined only a finite number of named values.
+pub struct Enum {
+    /// Type id.
+    pub type_id: i32,
+    /// Enumeration value ordinal.
+    pub ordinal: i32,
+}
