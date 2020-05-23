@@ -3,8 +3,10 @@ use std::io::{ErrorKind, Read};
 
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::Flag::{Failure, Success};
+use crate::{Date, Decimal, Enum, Time, Timestamp, UnpackType, Uuid};
 use std::any::Any;
 use std::convert::TryFrom;
+use std::panic::resume_unwind;
 
 pub(crate) mod cache_config;
 pub(crate) mod data_types;
@@ -241,6 +243,18 @@ pub(crate) fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
     }
 }
 
+pub(crate) fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
+    let mut new_alloc = [0u8; 8];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(u64::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn pack_u64(v: u64) -> Vec<u8> {
+    u64::to_le_bytes(v).to_vec()
+}
+
 pub(crate) fn pack_i64(v: i64) -> Vec<u8> {
     i64::to_le_bytes(v).to_vec()
 }
@@ -269,7 +283,7 @@ pub(crate) fn pack_f64(v: f64) -> Vec<u8> {
     f64::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_generic_arr<T, R, F>(reader: &mut R, read_fn: F) -> io::Result<Vec<T>>
+pub(crate) fn read_primitive_arr<T, R, F>(reader: &mut R, read_fn: F) -> io::Result<Vec<T>>
 where
     R: Read,
     F: Fn(&mut R) -> io::Result<T>,
@@ -280,4 +294,79 @@ where
         payload.push(read_fn(reader)?);
     }
     Ok(payload)
+}
+
+pub(crate) fn read_uuid(reader: &mut impl Read) -> io::Result<Uuid> {
+    let most_significant_bits = read_u64(reader)?;
+    let least_significant_bits = read_u64(reader)?;
+    Ok(Uuid {
+        most_significant_bits,
+        least_significant_bits,
+    })
+}
+
+pub(crate) fn pack_uuid(val: Uuid) -> Vec<u8> {
+    let mut bytes = pack_u64(val.most_significant_bits);
+    bytes.append(&mut pack_u64(val.least_significant_bits));
+    bytes
+}
+
+pub(crate) fn read_enum(reader: &mut impl Read) -> io::Result<Enum> {
+    let type_id = read_i32(reader)?;
+    let ordinal = read_i32(reader)?;
+    Ok(Enum { type_id, ordinal })
+}
+
+pub(crate) fn pack_enum(val: Enum) -> Vec<u8> {
+    let mut bytes = pack_i32(val.type_id);
+    bytes.append(&mut pack_i32(val.ordinal));
+    bytes
+}
+
+pub(crate) fn read_timestamp(reader: &mut impl Read) -> io::Result<Timestamp> {
+    let msecs_since_epoch = read_i64(reader)?;
+    let msec_fraction_in_nsecs = read_i32(reader)?;
+    Ok(Timestamp {
+        msecs_since_epoch,
+        msec_fraction_in_nsecs,
+    })
+}
+
+pub(crate) fn pack_timestamp(val: Timestamp) -> Vec<u8> {
+    let mut bytes = pack_i64(val.msecs_since_epoch);
+    bytes.append(&mut pack_i32(val.msec_fraction_in_nsecs));
+    bytes
+}
+
+pub(crate) fn read_date(reader: &mut impl Read) -> io::Result<Date> {
+    let msecs_since_epoch = read_i64(reader)?;
+    Ok(Date { msecs_since_epoch })
+}
+
+pub(crate) fn pack_date(val: Date) -> Vec<u8> {
+    pack_i64(val.msecs_since_epoch)
+}
+
+pub(crate) fn read_time(reader: &mut impl Read) -> io::Result<Time> {
+    let value = read_i64(reader)?;
+    Ok(Time { value })
+}
+
+pub(crate) fn pack_time(val: Time) -> Vec<u8> {
+    pack_i64(val.value)
+}
+
+pub(crate) fn read_decimal(reader: &mut impl Read) -> io::Result<Decimal> {
+    let scale = read_i32(reader)?;
+    let length = read_i32(reader)?;
+    let mut data: Vec<u8> = vec![0; length as usize];
+    reader.read_exact(&mut data[..])?;
+    Ok(Decimal { scale, data })
+}
+
+pub(crate) fn pack_decimal(mut val: Decimal) -> Vec<u8> {
+    let mut bytes = pack_i32(val.scale);
+    bytes.append(&mut pack_i32(val.data.len() as i32));
+    bytes.append(&mut val.data);
+    bytes
 }
