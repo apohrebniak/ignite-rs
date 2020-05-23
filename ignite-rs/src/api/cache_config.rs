@@ -5,7 +5,7 @@ use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::cache_config::{pack_cache_configuration, read_cache_configuration};
 use crate::protocol::{pack_i32, pack_str, read_i32};
 use crate::utils::string_to_java_hashcode;
-use crate::{Pack, Unpack, PackType, UnpackType};
+use crate::{Pack, PackType, Unpack, UnpackType};
 
 /// Cache Get Names 1050
 pub(crate) struct CacheGetNamesReq {}

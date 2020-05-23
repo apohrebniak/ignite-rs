@@ -1,9 +1,9 @@
 use std::io::{Read, Write};
 
-use crate::UnpackType;
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{pack_i16, pack_i32, read_i16, read_i32, read_string, read_u8, Version};
+use crate::UnpackType;
 
 pub(crate) fn handshake<T: Read + Write>(conn: &mut T, version: Version) -> IgniteResult<()> {
     let mut payload = Vec::<u8>::new();

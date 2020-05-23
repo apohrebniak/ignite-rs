@@ -14,10 +14,18 @@ fn main() {
     ignite.destroy_cache("HELLO");
     let my_cache_config = CacheConfiguration::new("HELLO");
 
-    let hello = ignite
-        .get_or_create_cache_with_config::<String, String>(&my_cache_config)
+    let hello: Cache<Vec<u8>, Vec<f64>> = ignite
+        .get_or_create_cache_with_config(&my_cache_config)
         .unwrap();
 
-    hello.put("greeting".into(), "Hello World!".into()).unwrap();
-    println!("{:?}", hello.get("greeting".into()).unwrap());
+    hello
+        .put(
+            vec![1u8],
+            vec![
+                123f64, 123f64, 123f64, 123f64, 123f64, 123f64, 123f64, 123f64, 123f64, 123f64,
+                123f64,
+            ],
+        )
+        .unwrap();
+    println!("{:?}", hello.get(vec![1u8]).unwrap());
 }
