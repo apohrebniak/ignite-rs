@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
 use std::io::Read;
 
-use crate::{UnpackType, PackType};
 use crate::cache::{
     AtomicityMode, CacheMode, IndexType, PartitionLossPolicy, RebalanceMode,
     WriteSynchronizationMode,
@@ -16,6 +15,7 @@ use crate::protocol::{
     pack_bool, pack_i16, pack_i32, pack_i64, pack_str, pack_u8, read_bool, read_i32, read_i64,
     read_string, read_u8,
 };
+use crate::{PackType, UnpackType};
 
 /// Cache Configuration Properties Codes
 #[derive(PartialOrd, PartialEq)]

@@ -2,12 +2,12 @@ use std::io;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::net::TcpStream;
 
-use crate::UnpackType;
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
 use crate::handshake::handshake;
 use crate::protocol::Flag::{Failure, Success};
 use crate::protocol::{new_req_header_bytes, read_i32, read_i64, read_string, Flag};
+use crate::UnpackType;
 use crate::{protocol, ClientConfig, Pack, Unpack};
 use std::sync::Mutex;
 

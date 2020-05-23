@@ -268,3 +268,16 @@ pub(crate) fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
 pub(crate) fn pack_f64(v: f64) -> Vec<u8> {
     f64::to_le_bytes(v).to_vec()
 }
+
+pub(crate) fn read_generic_arr<T, R, F>(reader: &mut R, read_fn: F) -> io::Result<Vec<T>>
+where
+    R: Read,
+    F: Fn(&mut R) -> io::Result<T>,
+{
+    let len = read_i32(reader)?;
+    let mut payload: Vec<T> = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        payload.push(read_fn(reader)?);
+    }
+    Ok(payload)
+}
