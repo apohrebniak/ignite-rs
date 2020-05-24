@@ -1,5 +1,5 @@
 use ignite_rs::cache::{Cache, CacheConfiguration};
-use ignite_rs::{ClientConfig, Enum, Ignite};
+use ignite_rs::{ClientConfig, Collection, Enum, EnumArr, Ignite, Map, ObjArr};
 
 fn main() {
     let client_config = ClientConfig {
@@ -11,13 +11,7 @@ fn main() {
         println!("ALL caches: {:?}", names)
     }
 
-    // ignite.destroy_cache("HELLO");
-    // let my_cache_config = CacheConfiguration::new("HELLO");
-    //
-    // let hello: Cache<Vec<u8>, Vec<f64>> = ignite
-    //     .get_or_create_cache_with_config(&my_cache_config)
-    //     .unwrap();
-    let hello: Cache<i32, Vec<Option<String>>> = ignite.get_or_create_cache("test").unwrap();
+    let hello: Cache<i32, Map<String, String>> = ignite.get_or_create_cache("map_foo").unwrap();
 
     println!("{:?}", hello.get(1).unwrap());
 }

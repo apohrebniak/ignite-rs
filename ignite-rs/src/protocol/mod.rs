@@ -55,8 +55,8 @@ pub(crate) enum TypeCode {
     ArrDate = 22,
     ArrTime = 37,
     ArrDecimal = 31,
-    ArrObj = 23,
     // object collections
+    ArrObj = 23,
     Collection = 24,
     Map = 25,
     ArrEnum = 29,
@@ -197,6 +197,18 @@ pub(crate) fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
 
 pub(crate) fn pack_u8(v: u8) -> Vec<u8> {
     u8::to_le_bytes(v).to_vec()
+}
+
+pub(crate) fn read_i8(reader: &mut impl Read) -> io::Result<i8> {
+    let mut new_alloc = [0u8; 1];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(i8::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn pack_i8(v: i8) -> Vec<u8> {
+    i8::to_le_bytes(v).to_vec()
 }
 
 pub(crate) fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
