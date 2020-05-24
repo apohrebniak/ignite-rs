@@ -5,7 +5,9 @@ use std::io::Read;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::*;
 use crate::protocol::{read_u8, TypeCode};
-use crate::{Enum, PackType, Unpack, UnpackType};
+use crate::{
+    CollType, Collection, Enum, EnumArr, Map, MapType, ObjArr, PackType, Unpack, UnpackType,
+};
 
 /// Ignite's 'char' is a UTF-16 code UNIT, which means its size is 2 bytes.
 /// As Rust's 'char' is a Unicode scalar value (a.k.a UTF-32 code unit) and has 4 bytes,
@@ -171,3 +173,155 @@ unpack_standard_arr!(Time);
 unpack_standard_arr!(Timestamp);
 unpack_standard_arr!(Uuid);
 unpack_standard_arr!(Date);
+
+impl<T: PackType + UnpackType> PackType for ObjArr<T> {
+    fn pack(self) -> Vec<u8> {
+        let mut data: Vec<u8> = Vec::new();
+        data.append(&mut pack_i32(self.type_id)); // typeid
+        data.append(&mut pack_i32(self.elements.len() as i32)); // length of array
+        for item in self.elements {
+            data.append(&mut item.pack())
+        }
+        pack_data_obj(TypeCode::ArrObj, &mut data)
+    }
+}
+
+impl<T: PackType + UnpackType> UnpackType for ObjArr<T> {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+        let value: Option<Self> = match type_code {
+            TypeCode::Null => None,
+            _ => {
+                let type_id = read_i32(reader)?;
+                let len = read_i32(reader)?;
+                let mut data: Vec<Option<T>> = Vec::with_capacity(len as usize);
+                for _ in 0..len {
+                    let item = T::unpack(reader)?;
+                    data.push(item);
+                }
+                Some(ObjArr::new(type_id, data))
+            }
+        };
+        Ok(value)
+    }
+}
+
+impl PackType for EnumArr {
+    fn pack(self) -> Vec<u8> {
+        let mut data: Vec<u8> = Vec::new();
+        data.append(&mut pack_i32(self.type_id));
+        data.append(&mut pack_i32(self.elements.len() as i32));
+        for el in self.elements {
+            data.append(&mut el.pack());
+        }
+        pack_data_obj(TypeCode::ArrEnum, &mut data)
+    }
+}
+
+impl UnpackType for EnumArr {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+        let value: Option<Self> = match type_code {
+            TypeCode::Null => None,
+            _ => {
+                let type_id = read_i32(reader)?;
+                let len = read_i32(reader)?;
+                let mut data: Vec<Option<Enum>> = Vec::with_capacity(len as usize);
+                for _ in 0..len {
+                    let item = Enum::unpack(reader)?;
+                    data.push(item);
+                }
+                Some(EnumArr::new(type_id, data))
+            }
+        };
+        Ok(value)
+    }
+}
+
+impl<T: PackType + UnpackType> PackType for Collection<T> {
+    fn pack(self) -> Vec<u8> {
+        let mut data: Vec<u8> = Vec::new();
+        data.append(&mut pack_i32(self.elements.len() as i32)); // length of array
+        data.append(&mut pack_i8(self.coll_type as i8)); // collection type
+        for item in self.elements {
+            match item {
+                None => data.push(TypeCode::Null as u8),
+                Some(value) => data.append(&mut value.pack()),
+            }
+        }
+        pack_data_obj(TypeCode::Collection, &mut data)
+    }
+}
+
+impl<T: PackType + UnpackType> UnpackType for Collection<T> {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+        let value: Option<Self> = match type_code {
+            TypeCode::Null => None,
+            _ => {
+                let len = read_i32(reader)?;
+                let coll_type = CollType::try_from(read_i8(reader)?)?;
+                let mut data: Vec<Option<T>> = Vec::with_capacity(len as usize);
+                for _ in 0..len {
+                    let item = T::unpack(reader)?;
+                    data.push(item);
+                }
+                Some(Collection::new(coll_type, data))
+            }
+        };
+        Ok(value)
+    }
+}
+
+impl<K: PackType + UnpackType, V: PackType + UnpackType> PackType for Map<K, V> {
+    fn pack(self) -> Vec<u8> {
+        let mut data: Vec<u8> = Vec::new();
+        data.append(&mut pack_i32(self.elements.len() as i32)); // length of array
+        data.append(&mut pack_i8(self.map_type as i8)); // collection type
+        for pair in self.elements {
+            data.append(&mut pair.0.pack());
+            data.append(&mut pair.1.pack());
+        }
+        pack_data_obj(TypeCode::Map, &mut data)
+    }
+}
+
+impl<K: PackType + UnpackType, V: PackType + UnpackType> UnpackType for Map<K, V> {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+        let value: Option<Self> = match type_code {
+            TypeCode::Null => None,
+            _ => {
+                let len = read_i32(reader)?;
+                let map_type = MapType::try_from(read_i8(reader)?)?;
+                let mut data: Vec<(Option<K>, Option<V>)> = Vec::with_capacity(len as usize);
+                for _ in 0..len {
+                    let key = K::unpack(reader)?;
+                    let value = V::unpack(reader)?;
+                    data.push((key, value));
+                }
+                Some(Map::new(map_type, data))
+            }
+        };
+        Ok(value)
+    }
+}
+
+impl<T: PackType> PackType for Option<T> {
+    fn pack(self) -> Vec<u8> {
+        match self {
+            None => vec![TypeCode::Null as u8],
+            Some(inner) => inner.pack(),
+        }
+    }
+}
+
+impl<T: UnpackType> UnpackType for Option<T> {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        let inner_op = T::unpack(reader)?;
+        match inner_op {
+            None => Ok(None),
+            Some(inner) => Ok(Some(Some(inner))),
+        }
+    }
+}

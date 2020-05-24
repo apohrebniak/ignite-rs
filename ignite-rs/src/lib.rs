@@ -7,8 +7,9 @@ use crate::api::OpCode;
 use crate::api::OpCode::CacheGetNames;
 use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
-use crate::error::IgniteResult;
+use crate::error::{IgniteError, IgniteResult};
 use crate::utils::string_to_java_hashcode;
+use std::convert::TryFrom;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 
@@ -262,4 +263,124 @@ pub struct Enum {
     pub type_id: i32,
     /// Enumeration value ordinal.
     pub ordinal: i32,
+}
+
+/// Array of objects. Has a `type_id` field witch is used for platform-specific
+/// serialization/deserialization.
+#[derive(Debug)]
+pub struct ObjArr<T: PackType + UnpackType> {
+    pub type_id: i32,
+    pub elements: Vec<Option<T>>,
+}
+
+impl<T: UnpackType + PackType> ObjArr<T> {
+    pub fn new(type_id: i32, elements: Vec<Option<T>>) -> ObjArr<T> {
+        ObjArr { type_id, elements }
+    }
+}
+
+/// Object collection. Has a `coll_id` field witch is used for platform-specific collection
+/// serialization/deserialization.
+#[derive(Debug)]
+pub struct Collection<T: PackType + UnpackType> {
+    pub coll_type: CollType,
+    pub elements: Vec<Option<T>>,
+}
+
+impl<T: PackType + UnpackType> Collection<T> {
+    pub fn new(coll_type: CollType, elements: Vec<Option<T>>) -> Collection<T> {
+        Collection {
+            coll_type,
+            elements,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct EnumArr {
+    pub type_id: i32,
+    pub elements: Vec<Option<Enum>>,
+}
+
+impl EnumArr {
+    pub fn new(type_id: i32, elements: Vec<Option<Enum>>) -> EnumArr {
+        EnumArr { type_id, elements }
+    }
+}
+
+/// Map-like collection type. Contains pairs of key and value objects.
+/// Both key and value objects can be objects of a various types.
+/// It includes standard objects of various type, as well as complex objects of various types and
+/// any combinations of them. Have a hint for a deserialization to a map of a certain type.
+#[derive(Debug)]
+pub struct Map<K: PackType + UnpackType, V: PackType + UnpackType> {
+    pub map_type: MapType,
+    pub elements: Vec<(Option<K>, Option<V>)>,
+}
+
+impl<K: PackType + UnpackType, V: PackType + UnpackType> Map<K, V> {
+    pub fn new(map_type: MapType, elements: Vec<(Option<K>, Option<V>)>) -> Map<K, V> {
+        Map { map_type, elements }
+    }
+}
+
+/// Hint for a deserialization to a platform-specific collection of a certain type, not just an array.
+#[derive(Debug)]
+pub enum CollType {
+    ///  This is a general set type, which can not be mapped to more specific set type.
+    /// Still, it is known, that it is set. It makes sense to deserialize such a collection to the
+    /// basic and most widely used set-like type on your platform, e.g. hash set.
+    UserSet = -1,
+    /// This is a general collection type, which can not be mapped to any more specific collection
+    /// type. It makes sense to deserialize such a collection to the basic and most widely used
+    /// collection type on your platform, e.g. resizeable array.
+    UserCol = 0,
+    /// Resizeable array type.
+    ArrList = 1,
+    /// Linked list type.
+    LinkedList = 2,
+    /// Basic hash set type.
+    HashSet = 3,
+    /// Hash set type, which maintains element order
+    LinkedHashSet = 4,
+    /// Collection that only contains a single element, but behaves as a collection.
+    /// Could be used by platforms for optimization purposes.
+    SingletonList = 5,
+}
+
+impl TryFrom<i8> for CollType {
+    type Error = IgniteError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        match value {
+            -1 => Ok(CollType::UserSet),
+            0 => Ok(CollType::UserCol),
+            1 => Ok(CollType::ArrList),
+            2 => Ok(CollType::LinkedList),
+            3 => Ok(CollType::HashSet),
+            4 => Ok(CollType::LinkedHashSet),
+            5 => Ok(CollType::SingletonList),
+            _ => Err(IgniteError::from("Cannot read collection type!")),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MapType {
+    /// Basic hash map
+    HashMap = 1,
+    /// Hash map, which maintains element order.
+    LinkedHashMap = 2,
+}
+
+impl TryFrom<i8> for MapType {
+    type Error = IgniteError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(MapType::HashMap),
+            2 => Ok(MapType::LinkedHashMap),
+            _ => Err(IgniteError::from("Cannot read map type!")),
+        }
+    }
 }
