@@ -12,6 +12,7 @@ use crate::utils::string_to_java_hashcode;
 use std::convert::TryFrom;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 mod api;
 pub mod cache;
@@ -382,5 +383,29 @@ impl TryFrom<i8> for MapType {
             2 => Ok(MapType::LinkedHashMap),
             _ => Err(IgniteError::from("Cannot read map type!")),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ComplexObj {
+    pub type_id: i32,
+    fields: HashMap<i32, Box<dyn IgniteType>>
+}
+
+impl ComplexObj {
+    pub fn new_with_name(type_name: &str, fields_num: usize) -> ComplexObj {
+        ComplexObj::new_with_type_id(string_to_java_hashcode(type_name), fields_num)
+    }
+
+    pub fn new_with_type_id(type_id: i32, fields_num: usize) -> ComplexObj {
+        ComplexObj { type_id, fields: HashMap::with_capacity(fields_num) }
+    }
+
+    pub fn insert(&mut self, name: &str, val: Box<dyn IgniteType>) {
+        self.fields.insert(string_to_java_hashcode(name), val);
+    }
+
+    pub fn remove(&mut self, name: &str) -> Option<Box<dyn IgniteType>> {
+        self.fields.remove(&string_to_java_hashcode(name))
     }
 }

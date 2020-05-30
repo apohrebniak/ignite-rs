@@ -5,9 +5,19 @@ use std::io::Read;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::*;
 use crate::protocol::{read_u8, TypeCode};
-use crate::{
-    CollType, Collection, Enum, EnumArr, Map, MapType, ObjArr, PackType, Unpack, UnpackType,
-};
+use crate::{CollType, Collection, Enum, EnumArr, Map, MapType, ObjArr, PackType, Unpack, UnpackType, Pack, ComplexObj};
+use crate::utils::bytes_to_java_hashcode;
+
+const FLAG_USER_TYPE: u16 = 0x0001;
+const FLAG_HAS_SCHEMA: u16 = 0x0002;
+const FLAG_HAS_RAW_DATA: u16 = 0x0002;
+
+const COMPLEX_OBJ_HEADER_LEN: u32 = 24;
+
+/// FNV1 hash offset basis
+const FNV1_OFFSET_BASIS: u32 = 0x811C_9DC5;
+/// FNV1 hash prime
+const FNV1_PRIME: u32 = 0x0100_0193;
 
 /// Ignite's 'char' is a UTF-16 code UNIT, which means its size is 2 bytes.
 /// As Rust's 'char' is a Unicode scalar value (a.k.a UTF-32 code unit) and has 4 bytes,
@@ -325,3 +335,57 @@ impl<T: UnpackType> UnpackType for Option<T> {
         }
     }
 }
+
+impl PackType for ComplexObj {
+    fn pack(self) -> Vec<u8> {
+        let mut data: Vec<u8> = Vec::new();
+        //version. always 1
+        data.append(&mut pack_u8(1));
+        //flags
+        data.append(&mut pack_u16(FLAG_USER_TYPE|FLAG_HAS_SCHEMA));
+        //type_id
+        data.append(&mut pack_i32(self.type_id));
+
+        //prepare fields
+        let mut fields: Vec<u8> = Vec::new();
+        let mut schema: Vec<u8> = Vec::new();
+        let mut schema_id: u32 = if self.fields.is_empty() {0} else {FNV1_OFFSET_BASIS};
+        for (hash, val) in self.fields {
+            let field_id = hash as u32;
+            schema_id ^= field_id & 0xFF;
+            schema_id *= FNV1_PRIME;
+            schema_id ^= (field_id >> 8) & 0xFF;
+            schema_id *= FNV1_PRIME;
+            schema_id ^= (field_id >> 16) & 0xFF;
+            schema_id *= FNV1_PRIME;
+            schema_id ^= (field_id >> 24) & 0xFF;
+            schema_id *= FNV1_PRIME;
+
+            schema.append(&mut pack_i32(hash)); // field id
+            schema.append(&mut pack_u32(COMPLEX_OBJ_HEADER_LEN + fields.len() as u32)); // field offset
+
+            fields.append(&mut val.pack());
+        }
+
+        //hash_code. used for keys
+        data.append(&mut pack_i32(bytes_to_java_hashcode(&fields[..])));
+        //length. including header
+        data.append(&mut pack_i32(COMPLEX_OBJ_HEADER_LEN as i32 + fields.len() as i32 + schema.len() as i32));
+        //schema_id
+        data.append(&mut pack_u32(schema_id));
+        //object fields
+        data.append(&mut fields);
+        //schema
+        data.append(&mut schema);
+        //no raw_data_offset written
+        pack_data_obj(TypeCode::ComplexObj, &mut data)
+    }
+}
+
+impl UnpackType for ComplexObj {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        unimplemented!()
+    }
+}
+
+

@@ -1,5 +1,5 @@
 use ignite_rs::cache::{Cache, CacheConfiguration};
-use ignite_rs::{ClientConfig, Collection, Enum, EnumArr, Ignite, Map, ObjArr};
+use ignite_rs::{ClientConfig, Collection, Enum, EnumArr, Ignite, Map, ObjArr, ComplexObj};
 
 fn main() {
     let client_config = ClientConfig {
@@ -11,7 +11,17 @@ fn main() {
         println!("ALL caches: {:?}", names)
     }
 
-    let hello: Cache<i32, Map<String, String>> = ignite.get_or_create_cache("map_foo").unwrap();
+    let hello: Cache<Foo, Foo> = ignite.get_or_create_cache("test").unwrap();
 
     println!("{:?}", hello.get(1).unwrap());
+}
+
+struct Foo {
+    bar: String,
+}
+
+impl Into<ComplexObj<String>> for Foo {
+    fn into(self) -> ComplexObj<String> {
+        unimplemented!()
+    }
 }

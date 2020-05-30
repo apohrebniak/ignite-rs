@@ -247,6 +247,18 @@ pub(crate) fn pack_i32(v: i32) -> Vec<u8> {
     i32::to_le_bytes(v).to_vec()
 }
 
+pub(crate) fn read_u32(reader: &mut impl Read) -> io::Result<u32> {
+    let mut new_alloc = [0u8; 4];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(u32::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub(crate) fn pack_u32(v: u32) -> Vec<u8> {
+    u32::to_le_bytes(v).to_vec()
+}
+
 pub(crate) fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
     let mut new_alloc = [0u8; 8];
     match reader.read_exact(&mut new_alloc[..]) {
