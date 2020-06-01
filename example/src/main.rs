@@ -1,5 +1,11 @@
 use ignite_rs::cache::{Cache, CacheConfiguration};
-use ignite_rs::{ClientConfig, Collection, Enum, EnumArr, Ignite, Map, ObjArr, ComplexObj};
+use ignite_rs::error::IgniteResult;
+use ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN;
+use ignite_rs::{
+    ClientConfig, Collection, Enum, EnumArr, Ignite, IgniteObj, Map, ObjArr, PackType, UnpackType,
+};
+use ignite_rs_derive::IgniteObj;
+use std::io::Read;
 
 fn main() {
     let client_config = ClientConfig {
@@ -13,15 +19,31 @@ fn main() {
 
     let hello: Cache<Foo, Foo> = ignite.get_or_create_cache("test").unwrap();
 
-    println!("{:?}", hello.get(1).unwrap());
+    let key = Foo {
+        bar: "AAAAA".into(),
+        foo: 999,
+    };
+    let val = Foo {
+        bar: "BBBBB".into(),
+        foo: 999,
+    };
+
+    hello.put(key.clone(), val).unwrap();
+
+    println!("{:?}", hello.get(key.clone()).unwrap());
 }
 
+#[derive(IgniteObj, Clone, Debug)]
 struct Foo {
     bar: String,
+    foo: i32,
 }
 
-impl Into<ComplexObj<String>> for Foo {
-    fn into(self) -> ComplexObj<String> {
-        unimplemented!()
+impl UnpackType for Foo {
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        Ok(Some(Foo {
+            bar: "really?".to_string(),
+            foo: 999,
+        }))
     }
 }

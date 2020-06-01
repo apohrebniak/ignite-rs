@@ -9,18 +9,18 @@ use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
 use crate::error::{IgniteError, IgniteResult};
 use crate::utils::string_to_java_hashcode;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 
 mod api;
 pub mod cache;
 mod connection;
-mod error;
+pub mod error;
 mod handshake;
-mod protocol;
-mod utils;
+pub mod protocol;
+pub mod utils;
 
 /// Ignite Client configuration
 #[derive(Clone)]
@@ -208,6 +208,8 @@ pub trait UnpackType: Sized {
     fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>>;
 }
 
+pub trait IgniteObj: PackType + UnpackType {}
+
 #[derive(Debug)]
 #[allow(dead_code)]
 ///A universally unique identifier (UUID) is a 128-bit number used to identify information in computer systems.
@@ -383,29 +385,5 @@ impl TryFrom<i8> for MapType {
             2 => Ok(MapType::LinkedHashMap),
             _ => Err(IgniteError::from("Cannot read map type!")),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct ComplexObj {
-    pub type_id: i32,
-    fields: HashMap<i32, Box<dyn IgniteType>>
-}
-
-impl ComplexObj {
-    pub fn new_with_name(type_name: &str, fields_num: usize) -> ComplexObj {
-        ComplexObj::new_with_type_id(string_to_java_hashcode(type_name), fields_num)
-    }
-
-    pub fn new_with_type_id(type_id: i32, fields_num: usize) -> ComplexObj {
-        ComplexObj { type_id, fields: HashMap::with_capacity(fields_num) }
-    }
-
-    pub fn insert(&mut self, name: &str, val: Box<dyn IgniteType>) {
-        self.fields.insert(string_to_java_hashcode(name), val);
-    }
-
-    pub fn remove(&mut self, name: &str) -> Option<Box<dyn IgniteType>> {
-        self.fields.remove(&string_to_java_hashcode(name))
     }
 }

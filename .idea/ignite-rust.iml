@@ -14,6 +14,7 @@
       <sourceFolder url="file://$MODULE_DIR$/ignite-rs/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ignite-rs/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/ignite-rs/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/ignite-rs_derive/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/example/target" />
       <excludeFolder url="file://$MODULE_DIR$/ignite-rs/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
