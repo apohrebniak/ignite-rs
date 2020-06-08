@@ -43,7 +43,7 @@ fn impl_pack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
 
     quote! {
         impl PackType for #type_name {
-            fn pack(self) -> Vec<u8> {
+            fn pack(&self) -> Vec<u8> {
                 let mut data: Vec<u8> = Vec::new();
                 data.append(&mut ignite_rs::protocol::pack_u8(1)); //version. always 1
                 data.append(&mut ignite_rs::protocol::pack_u16(ignite_rs::protocol::FLAG_USER_TYPE|ignite_rs::protocol::FLAG_HAS_SCHEMA)); //flags
@@ -72,6 +72,7 @@ fn impl_pack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
 /// Implements Unpack trait
 fn impl_unpack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     let exp_type_id: i32 = get_type_id(type_name);
+    let fields_count = fields.named.len();
 
     let fields_unpack = fields.named.iter().map(|f| {
         let field_name = &f.ident;
@@ -121,7 +122,10 @@ fn impl_unpack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
 
                         #( #fields_unpack)*
 
-                        read_i32(reader)?; // read schema
+                        // read schema
+                        for _ in 0..#fields_count {
+                            read_i64(reader)?; // read one field (id and offset)
+                        }
 
                         Some(
                             #type_name{
