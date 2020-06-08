@@ -5,31 +5,31 @@ use crate::{Pack, PackType, Unpack, UnpackType};
 use std::any::Any;
 use std::io::Read;
 
-pub(crate) enum CacheReq<K: PackType, V: PackType> {
-    Get(i32, K),
-    GetAll(i32, Vec<K>),
-    Put(i32, K, V),
-    PutAll(i32, Vec<(K, V)>),
-    ContainsKey(i32, K),
-    ContainsKeys(i32, Vec<K>),
-    GetAndPut(i32, K, V),
-    GetAndReplace(i32, K, V),
-    GetAndRemove(i32, K),
-    PutIfAbsent(i32, K, V),
-    GetAndPutIfAbsent(i32, K, V),
-    Replace(i32, K, V),
-    ReplaceIfEquals(i32, K, V, V),
+pub(crate) enum CacheReq<'a, K: PackType, V: PackType> {
+    Get(i32, &'a K),
+    GetAll(i32, &'a Vec<K>),
+    Put(i32, &'a K, &'a V),
+    PutAll(i32, &'a Vec<(K, V)>),
+    ContainsKey(i32, &'a K),
+    ContainsKeys(i32, &'a Vec<K>),
+    GetAndPut(i32, &'a K, &'a V),
+    GetAndReplace(i32, &'a K, &'a V),
+    GetAndRemove(i32, &'a K),
+    PutIfAbsent(i32, &'a K, &'a V),
+    GetAndPutIfAbsent(i32, &'a K, &'a V),
+    Replace(i32, &'a K, &'a V),
+    ReplaceIfEquals(i32, &'a K, &'a V, &'a V),
     Clear(i32),
-    ClearKey(i32, K),
-    ClearKeys(i32, Vec<K>),
-    RemoveKey(i32, K),
-    RemoveIfEquals(i32, K, V),
+    ClearKey(i32, &'a K),
+    ClearKeys(i32, &'a Vec<K>),
+    RemoveKey(i32, &'a K),
+    RemoveIfEquals(i32, &'a K, &'a V),
     GetSize(i32, Vec<CachePeekMode>),
-    RemoveKeys(i32, Vec<K>),
+    RemoveKeys(i32, &'a Vec<K>),
     RemoveAll(i32),
 }
 
-impl<K: PackType, V: PackType> Pack for CacheReq<K, V> {
+impl<'a, K: PackType, V: PackType> Pack for CacheReq<'a, K, V> {
     fn pack(self) -> Vec<u8> {
         match self {
             CacheReq::Get(id, key)
