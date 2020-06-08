@@ -8,6 +8,7 @@ use crate::api::OpCode::CacheGetNames;
 use crate::cache::{Cache, CacheConfiguration};
 use crate::connection::Connection;
 use crate::error::{IgniteError, IgniteResult};
+use crate::protocol::{read_u8, read_wrapped_data, TypeCode};
 use crate::utils::string_to_java_hashcode;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -205,7 +206,10 @@ pub trait PackType {
 }
 
 pub trait UnpackType: Sized {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>>;
+    fn unpack_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>>;
+    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        read_wrapped_data(reader)
+    }
 }
 
 pub trait IgniteObj: PackType + UnpackType {}

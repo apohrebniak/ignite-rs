@@ -13,6 +13,9 @@ pub(crate) mod data_types;
 const REQ_HEADER_SIZE_BYTES: i32 = 10;
 pub const FLAG_USER_TYPE: u16 = 0x0001;
 pub const FLAG_HAS_SCHEMA: u16 = 0x0002;
+pub const FLAG_COMPACT_FOOTER: u16 = 0x0020;
+pub const FLAG_OFFSET_ONE_BYTE: u16 = 0x0008;
+pub const FLAG_OFFSET_TWO_BYTES: u16 = 0x0010;
 
 pub const COMPLEX_OBJ_HEADER_LEN: i32 = 24;
 
@@ -65,6 +68,7 @@ pub enum TypeCode {
     ArrEnum = 29,
     ComplexObj = 103,
     Null = 101,
+    WrappedData = 27,
 }
 
 impl TryFrom<u8> for TypeCode {
@@ -105,10 +109,13 @@ impl TryFrom<u8> for TypeCode {
             23 => Ok(TypeCode::ArrObj),
             24 => Ok(TypeCode::Collection),
             25 => Ok(TypeCode::Map),
+            27 => Ok(TypeCode::WrappedData),
             29 => Ok(TypeCode::ArrEnum),
             103 => Ok(TypeCode::ComplexObj),
             101 => Ok(TypeCode::Null),
-            _ => Err(IgniteError::from("Cannot read TypeCode")),
+            _ => Err(IgniteError::from(
+                format!("Cannot read TypeCode {}", value).as_str(),
+            )),
         }
     }
 }
@@ -133,6 +140,20 @@ pub fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
     let mut bytes = vec![code as u8];
     bytes.append(data);
     bytes
+}
+
+/// Reads data objects that are wrapped in the WrappedData(type code = 27)
+pub fn read_wrapped_data<T: UnpackType>(reader: &mut impl Read) -> IgniteResult<Option<T>> {
+    let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    match type_code {
+        TypeCode::WrappedData => {
+            read_i32(reader)?; // skip len
+            let value = T::unpack(reader);
+            read_i32(reader)?; // skip offset
+            value
+        }
+        _ => T::unpack_unwrapped(type_code, reader),
+    }
 }
 
 /// This function is basically a String's PackType implementation but for &str.

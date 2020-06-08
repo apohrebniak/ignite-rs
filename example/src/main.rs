@@ -1,10 +1,15 @@
 use ignite_rs::cache::{Cache, CacheConfiguration};
-use ignite_rs::error::IgniteResult;
-use ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN;
+use ignite_rs::error::{IgniteError, IgniteResult};
+use ignite_rs::protocol::{
+    read_i32, read_u16, read_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
+    FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES,
+};
 use ignite_rs::{
     ClientConfig, Collection, Enum, EnumArr, Ignite, IgniteObj, Map, ObjArr, PackType, UnpackType,
 };
 use ignite_rs_derive::IgniteObj;
+use std::convert::TryFrom;
+use std::fs::read;
 use std::io::Read;
 
 fn main() {
@@ -17,15 +22,15 @@ fn main() {
         println!("ALL caches: {:?}", names)
     }
 
-    let hello: Cache<Foo, Foo> = ignite.get_or_create_cache("test").unwrap();
+    let hello: Cache<MyType, MyOtherType> = ignite.get_or_create_cache("test").unwrap();
 
-    let key = Foo {
+    let key = MyType {
         bar: "AAAAA".into(),
         foo: 999,
     };
-    let val = Foo {
-        bar: "BBBBB".into(),
-        foo: 999,
+    let val = MyOtherType {
+        list: vec![Some("ffff".into())],
+        foobar: FooBar {},
     };
 
     hello.put(key.clone(), val).unwrap();
@@ -34,16 +39,16 @@ fn main() {
 }
 
 #[derive(IgniteObj, Clone, Debug)]
-struct Foo {
+struct MyType {
     bar: String,
     foo: i32,
 }
 
-impl UnpackType for Foo {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-        Ok(Some(Foo {
-            bar: "really?".to_string(),
-            foo: 999,
-        }))
-    }
+#[derive(IgniteObj, Clone, Debug)]
+struct MyOtherType {
+    list: Vec<Option<String>>,
+    foobar: FooBar,
 }
+
+#[derive(IgniteObj, Clone, Debug)]
+struct FooBar {}
