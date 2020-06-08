@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 ignite-rs = {path="../ignite-rs"}
+ignite-rs_derive = {path="../ignite-rs_derive"}
