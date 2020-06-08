@@ -3,7 +3,7 @@ use std::io::{ErrorKind, Read};
 
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::Flag::{Failure, Success};
-use crate::{Date, Decimal, Enum, Time, Timestamp, UnpackType, Uuid};
+use crate::{Date, Enum, Time, Timestamp, UnpackType, Uuid};
 use std::any::Any;
 use std::convert::TryFrom;
 
@@ -170,7 +170,7 @@ pub(crate) fn pack_str(value: &str) -> Vec<u8> {
 
 //// Read functions. No TypeCode, no NULL checking
 
-pub fn pack_string(value: String) -> Vec<u8> {
+pub fn pack_string(value: &str) -> Vec<u8> {
     let value_bytes = value.as_bytes();
     let mut bytes = Vec::<u8>::new();
     bytes.append(&mut pack_i32(value_bytes.len() as i32));
@@ -398,19 +398,4 @@ pub fn read_time(reader: &mut impl Read) -> io::Result<Time> {
 
 pub fn pack_time(val: Time) -> Vec<u8> {
     pack_i64(val.value)
-}
-
-pub fn read_decimal(reader: &mut impl Read) -> io::Result<Decimal> {
-    let scale = read_i32(reader)?;
-    let length = read_i32(reader)?;
-    let mut data: Vec<u8> = vec![0; length as usize];
-    reader.read_exact(&mut data[..])?;
-    Ok(Decimal { scale, data })
-}
-
-pub fn pack_decimal(mut val: Decimal) -> Vec<u8> {
-    let mut bytes = pack_i32(val.scale);
-    bytes.append(&mut pack_i32(val.data.len() as i32));
-    bytes.append(&mut val.data);
-    bytes
 }
