@@ -5,8 +5,9 @@ use std::io::Read;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::*;
 use crate::protocol::{read_u8, TypeCode};
+use crate::utils::bytes_to_java_hashcode;
 use crate::{
-    CollType, Collection, Enum, EnumArr, Map, MapType, ObjArr, PackType, Unpack, UnpackType,
+    CollType, Collection, Enum, EnumArr, Map, MapType, ObjArr, Pack, PackType, Unpack, UnpackType,
 };
 
 /// Ignite's 'char' is a UTF-16 code UNIT, which means its size is 2 bytes.
@@ -42,8 +43,10 @@ pack_type!(Decimal, TypeCode::Decimal, pack_decimal);
 macro_rules! unpack_type {
     ($t:ty, $unpack_fn:ident) => {
         impl UnpackType for $t {
-            fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-                let type_code = TypeCode::try_from(read_u8(reader)?)?;
+            fn unpack_unwrapped(
+                type_code: TypeCode,
+                reader: &mut impl Read,
+            ) -> IgniteResult<Option<Self>> {
                 let value: Option<Self> = match type_code {
                     TypeCode::Null => None,
                     _ => Some($unpack_fn(reader)?),
@@ -98,8 +101,10 @@ pack_primitive_arr!(u16, TypeCode::ArrChar, pack_u16);
 macro_rules! unpack_primitive_arr {
     ($t:ty, $read_fn:ident) => {
         impl UnpackType for Vec<$t> {
-            fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-                let type_code = TypeCode::try_from(read_u8(reader)?)?;
+            fn unpack_unwrapped(
+                type_code: TypeCode,
+                reader: &mut impl Read,
+            ) -> IgniteResult<Option<Self>> {
                 let value: Option<Self> = match type_code {
                     TypeCode::Null => None,
                     _ => Some(read_primitive_arr(reader, $read_fn)?),
@@ -147,8 +152,10 @@ pack_standard_arr!(Date, TypeCode::ArrDate);
 macro_rules! unpack_standard_arr {
     ($t:ty) => {
         impl UnpackType for Vec<Option<$t>> {
-            fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-                let type_code = TypeCode::try_from(read_u8(reader)?)?;
+            fn unpack_unwrapped(
+                type_code: TypeCode,
+                reader: &mut impl Read,
+            ) -> IgniteResult<Option<Self>> {
                 let value: Option<Self> = match type_code {
                     TypeCode::Null => None,
                     _ => {
@@ -187,8 +194,7 @@ impl<T: PackType + UnpackType> PackType for ObjArr<T> {
 }
 
 impl<T: PackType + UnpackType> UnpackType for ObjArr<T> {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    fn unpack_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
         let value: Option<Self> = match type_code {
             TypeCode::Null => None,
             _ => {
@@ -219,8 +225,7 @@ impl PackType for EnumArr {
 }
 
 impl UnpackType for EnumArr {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    fn unpack_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
         let value: Option<Self> = match type_code {
             TypeCode::Null => None,
             _ => {
@@ -254,8 +259,7 @@ impl<T: PackType + UnpackType> PackType for Collection<T> {
 }
 
 impl<T: PackType + UnpackType> UnpackType for Collection<T> {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    fn unpack_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
         let value: Option<Self> = match type_code {
             TypeCode::Null => None,
             _ => {
@@ -287,8 +291,7 @@ impl<K: PackType + UnpackType, V: PackType + UnpackType> PackType for Map<K, V> 
 }
 
 impl<K: PackType + UnpackType, V: PackType + UnpackType> UnpackType for Map<K, V> {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-        let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    fn unpack_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
         let value: Option<Self> = match type_code {
             TypeCode::Null => None,
             _ => {
@@ -317,8 +320,8 @@ impl<T: PackType> PackType for Option<T> {
 }
 
 impl<T: UnpackType> UnpackType for Option<T> {
-    fn unpack(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
-        let inner_op = T::unpack(reader)?;
+    fn unpack_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+        let inner_op = T::unpack_unwrapped(type_code, reader)?;
         match inner_op {
             None => Ok(None),
             Some(inner) => Ok(Some(Some(inner))),

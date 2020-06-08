@@ -2,5 +2,6 @@
 
 members = [
   "ignite-rs",
+  "ignite-rs_derive",
   "example"
 ]

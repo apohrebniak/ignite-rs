@@ -6,12 +6,18 @@ use crate::protocol::Flag::{Failure, Success};
 use crate::{Date, Decimal, Enum, Time, Timestamp, UnpackType, Uuid};
 use std::any::Any;
 use std::convert::TryFrom;
-use std::panic::resume_unwind;
 
 pub(crate) mod cache_config;
 pub(crate) mod data_types;
 
 const REQ_HEADER_SIZE_BYTES: i32 = 10;
+pub const FLAG_USER_TYPE: u16 = 0x0001;
+pub const FLAG_HAS_SCHEMA: u16 = 0x0002;
+pub const FLAG_COMPACT_FOOTER: u16 = 0x0020;
+pub const FLAG_OFFSET_ONE_BYTE: u16 = 0x0008;
+pub const FLAG_OFFSET_TWO_BYTES: u16 = 0x0010;
+
+pub const COMPLEX_OBJ_HEADER_LEN: i32 = 24;
 
 /// Protocol version supported by client
 pub(crate) const VERSION: Version = Version(1, 2, 0);
@@ -21,7 +27,7 @@ pub(crate) struct Version(pub(crate) i16, pub(crate) i16, pub(crate) i16);
 /// All Data types described in Binary Protocol
 /// https://apacheignite.readme.io/docs/binary-client-protocol-data-format
 #[derive(PartialOrd, PartialEq)]
-pub(crate) enum TypeCode {
+pub enum TypeCode {
     // primitives
     Byte = 1,
     Short = 2,
@@ -61,9 +67,8 @@ pub(crate) enum TypeCode {
     Map = 25,
     ArrEnum = 29,
     ComplexObj = 103,
-    WrappedData = 27,
-    BinaryEnum = 38,
     Null = 101,
+    WrappedData = 27,
 }
 
 impl TryFrom<u8> for TypeCode {
@@ -104,12 +109,13 @@ impl TryFrom<u8> for TypeCode {
             23 => Ok(TypeCode::ArrObj),
             24 => Ok(TypeCode::Collection),
             25 => Ok(TypeCode::Map),
+            27 => Ok(TypeCode::WrappedData),
             29 => Ok(TypeCode::ArrEnum),
             103 => Ok(TypeCode::ComplexObj),
-            27 => Ok(TypeCode::WrappedData),
-            38 => Ok(TypeCode::BinaryEnum),
             101 => Ok(TypeCode::Null),
-            _ => Err(IgniteError::from("Cannot read TypeCode")),
+            _ => Err(IgniteError::from(
+                format!("Cannot read TypeCode {}", value).as_str(),
+            )),
         }
     }
 }
@@ -130,10 +136,24 @@ pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: i16) -> Vec<u8> 
     data
 }
 
-pub(crate) fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
+pub fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
     let mut bytes = vec![code as u8];
     bytes.append(data);
     bytes
+}
+
+/// Reads data objects that are wrapped in the WrappedData(type code = 27)
+pub fn read_wrapped_data<T: UnpackType>(reader: &mut impl Read) -> IgniteResult<Option<T>> {
+    let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    match type_code {
+        TypeCode::WrappedData => {
+            read_i32(reader)?; // skip len
+            let value = T::unpack(reader);
+            read_i32(reader)?; // skip offset
+            value
+        }
+        _ => T::unpack_unwrapped(type_code, reader),
+    }
 }
 
 /// This function is basically a String's PackType implementation but for &str.
@@ -150,7 +170,7 @@ pub(crate) fn pack_str(value: &str) -> Vec<u8> {
 
 //// Read functions. No TypeCode, no NULL checking
 
-pub(crate) fn pack_string(value: String) -> Vec<u8> {
+pub fn pack_string(value: String) -> Vec<u8> {
     let value_bytes = value.as_bytes();
     let mut bytes = Vec::<u8>::new();
     bytes.append(&mut pack_i32(value_bytes.len() as i32));
@@ -158,7 +178,7 @@ pub(crate) fn pack_string(value: String) -> Vec<u8> {
     bytes
 }
 
-pub(crate) fn read_string(reader: &mut impl Read) -> io::Result<String> {
+pub fn read_string(reader: &mut impl Read) -> io::Result<String> {
     let str_len = read_i32(reader)?;
 
     let mut new_alloc = vec![0u8; str_len as usize];
@@ -171,7 +191,7 @@ pub(crate) fn read_string(reader: &mut impl Read) -> io::Result<String> {
     }
 }
 
-pub(crate) fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
+pub fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(0u8.ne(&new_alloc[0])),
@@ -179,7 +199,7 @@ pub(crate) fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
     }
 }
 
-pub(crate) fn pack_bool(v: bool) -> Vec<u8> {
+pub fn pack_bool(v: bool) -> Vec<u8> {
     if v {
         pack_u8(1u8)
     } else {
@@ -187,7 +207,7 @@ pub(crate) fn pack_bool(v: bool) -> Vec<u8> {
     }
 }
 
-pub(crate) fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
+pub fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(u8::from_le_bytes(new_alloc)),
@@ -195,11 +215,11 @@ pub(crate) fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
     }
 }
 
-pub(crate) fn pack_u8(v: u8) -> Vec<u8> {
+pub fn pack_u8(v: u8) -> Vec<u8> {
     u8::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_i8(reader: &mut impl Read) -> io::Result<i8> {
+pub fn read_i8(reader: &mut impl Read) -> io::Result<i8> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(i8::from_le_bytes(new_alloc)),
@@ -207,11 +227,11 @@ pub(crate) fn read_i8(reader: &mut impl Read) -> io::Result<i8> {
     }
 }
 
-pub(crate) fn pack_i8(v: i8) -> Vec<u8> {
+pub fn pack_i8(v: i8) -> Vec<u8> {
     i8::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
+pub fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
     let mut new_alloc = [0u8; 2];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(u16::from_le_bytes(new_alloc)),
@@ -219,11 +239,11 @@ pub(crate) fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
     }
 }
 
-pub(crate) fn pack_u16(v: u16) -> Vec<u8> {
+pub fn pack_u16(v: u16) -> Vec<u8> {
     u16::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
+pub fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
     let mut new_alloc = [0u8; 2];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(i16::from_le_bytes(new_alloc)),
@@ -231,11 +251,11 @@ pub(crate) fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
     }
 }
 
-pub(crate) fn pack_i16(v: i16) -> Vec<u8> {
+pub fn pack_i16(v: i16) -> Vec<u8> {
     i16::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_i32(reader: &mut impl Read) -> io::Result<i32> {
+pub fn read_i32(reader: &mut impl Read) -> io::Result<i32> {
     let mut new_alloc = [0u8; 4];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(i32::from_le_bytes(new_alloc)),
@@ -243,11 +263,23 @@ pub(crate) fn read_i32(reader: &mut impl Read) -> io::Result<i32> {
     }
 }
 
-pub(crate) fn pack_i32(v: i32) -> Vec<u8> {
+pub fn pack_i32(v: i32) -> Vec<u8> {
     i32::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
+pub fn read_u32(reader: &mut impl Read) -> io::Result<u32> {
+    let mut new_alloc = [0u8; 4];
+    match reader.read_exact(&mut new_alloc[..]) {
+        Ok(_) => Ok(u32::from_le_bytes(new_alloc)),
+        Err(err) => Err(err),
+    }
+}
+
+pub fn pack_u32(v: u32) -> Vec<u8> {
+    u32::to_le_bytes(v).to_vec()
+}
+
+pub fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
     let mut new_alloc = [0u8; 8];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(i64::from_le_bytes(new_alloc)),
@@ -255,7 +287,7 @@ pub(crate) fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
     }
 }
 
-pub(crate) fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
+pub fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
     let mut new_alloc = [0u8; 8];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(u64::from_le_bytes(new_alloc)),
@@ -263,15 +295,15 @@ pub(crate) fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
     }
 }
 
-pub(crate) fn pack_u64(v: u64) -> Vec<u8> {
+pub fn pack_u64(v: u64) -> Vec<u8> {
     u64::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn pack_i64(v: i64) -> Vec<u8> {
+pub fn pack_i64(v: i64) -> Vec<u8> {
     i64::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_f32(reader: &mut impl Read) -> io::Result<f32> {
+pub fn read_f32(reader: &mut impl Read) -> io::Result<f32> {
     let mut new_alloc = [0u8; 4];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(f32::from_le_bytes(new_alloc)),
@@ -279,11 +311,11 @@ pub(crate) fn read_f32(reader: &mut impl Read) -> io::Result<f32> {
     }
 }
 
-pub(crate) fn pack_f32(v: f32) -> Vec<u8> {
+pub fn pack_f32(v: f32) -> Vec<u8> {
     f32::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
+pub fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
     let mut new_alloc = [0u8; 8];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(f64::from_le_bytes(new_alloc)),
@@ -291,11 +323,11 @@ pub(crate) fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
     }
 }
 
-pub(crate) fn pack_f64(v: f64) -> Vec<u8> {
+pub fn pack_f64(v: f64) -> Vec<u8> {
     f64::to_le_bytes(v).to_vec()
 }
 
-pub(crate) fn read_primitive_arr<T, R, F>(reader: &mut R, read_fn: F) -> io::Result<Vec<T>>
+pub fn read_primitive_arr<T, R, F>(reader: &mut R, read_fn: F) -> io::Result<Vec<T>>
 where
     R: Read,
     F: Fn(&mut R) -> io::Result<T>,
@@ -308,7 +340,7 @@ where
     Ok(payload)
 }
 
-pub(crate) fn read_uuid(reader: &mut impl Read) -> io::Result<Uuid> {
+pub fn read_uuid(reader: &mut impl Read) -> io::Result<Uuid> {
     let most_significant_bits = read_u64(reader)?;
     let least_significant_bits = read_u64(reader)?;
     Ok(Uuid {
@@ -317,25 +349,25 @@ pub(crate) fn read_uuid(reader: &mut impl Read) -> io::Result<Uuid> {
     })
 }
 
-pub(crate) fn pack_uuid(val: Uuid) -> Vec<u8> {
+pub fn pack_uuid(val: Uuid) -> Vec<u8> {
     let mut bytes = pack_u64(val.most_significant_bits);
     bytes.append(&mut pack_u64(val.least_significant_bits));
     bytes
 }
 
-pub(crate) fn read_enum(reader: &mut impl Read) -> io::Result<Enum> {
+pub fn read_enum(reader: &mut impl Read) -> io::Result<Enum> {
     let type_id = read_i32(reader)?;
     let ordinal = read_i32(reader)?;
     Ok(Enum { type_id, ordinal })
 }
 
-pub(crate) fn pack_enum(val: Enum) -> Vec<u8> {
+pub fn pack_enum(val: Enum) -> Vec<u8> {
     let mut bytes = pack_i32(val.type_id);
     bytes.append(&mut pack_i32(val.ordinal));
     bytes
 }
 
-pub(crate) fn read_timestamp(reader: &mut impl Read) -> io::Result<Timestamp> {
+pub fn read_timestamp(reader: &mut impl Read) -> io::Result<Timestamp> {
     let msecs_since_epoch = read_i64(reader)?;
     let msec_fraction_in_nsecs = read_i32(reader)?;
     Ok(Timestamp {
@@ -344,31 +376,31 @@ pub(crate) fn read_timestamp(reader: &mut impl Read) -> io::Result<Timestamp> {
     })
 }
 
-pub(crate) fn pack_timestamp(val: Timestamp) -> Vec<u8> {
+pub fn pack_timestamp(val: Timestamp) -> Vec<u8> {
     let mut bytes = pack_i64(val.msecs_since_epoch);
     bytes.append(&mut pack_i32(val.msec_fraction_in_nsecs));
     bytes
 }
 
-pub(crate) fn read_date(reader: &mut impl Read) -> io::Result<Date> {
+pub fn read_date(reader: &mut impl Read) -> io::Result<Date> {
     let msecs_since_epoch = read_i64(reader)?;
     Ok(Date { msecs_since_epoch })
 }
 
-pub(crate) fn pack_date(val: Date) -> Vec<u8> {
+pub fn pack_date(val: Date) -> Vec<u8> {
     pack_i64(val.msecs_since_epoch)
 }
 
-pub(crate) fn read_time(reader: &mut impl Read) -> io::Result<Time> {
+pub fn read_time(reader: &mut impl Read) -> io::Result<Time> {
     let value = read_i64(reader)?;
     Ok(Time { value })
 }
 
-pub(crate) fn pack_time(val: Time) -> Vec<u8> {
+pub fn pack_time(val: Time) -> Vec<u8> {
     pack_i64(val.value)
 }
 
-pub(crate) fn read_decimal(reader: &mut impl Read) -> io::Result<Decimal> {
+pub fn read_decimal(reader: &mut impl Read) -> io::Result<Decimal> {
     let scale = read_i32(reader)?;
     let length = read_i32(reader)?;
     let mut data: Vec<u8> = vec![0; length as usize];
@@ -376,7 +408,7 @@ pub(crate) fn read_decimal(reader: &mut impl Read) -> io::Result<Decimal> {
     Ok(Decimal { scale, data })
 }
 
-pub(crate) fn pack_decimal(mut val: Decimal) -> Vec<u8> {
+pub fn pack_decimal(mut val: Decimal) -> Vec<u8> {
     let mut bytes = pack_i32(val.scale);
     bytes.append(&mut pack_i32(val.data.len() as i32));
     bytes.append(&mut val.data);
