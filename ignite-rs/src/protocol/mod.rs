@@ -2,15 +2,13 @@ use std::io;
 use std::io::{ErrorKind, Read};
 
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::Flag::{Failure, Success};
-use crate::{Date, Enum, Time, Timestamp, UnpackType, Uuid};
-use std::any::Any;
+
+use crate::{Date, Enum, ReadableType, Time, Timestamp, Uuid};
 use std::convert::TryFrom;
 
 pub(crate) mod cache_config;
 pub(crate) mod data_types;
 
-const REQ_HEADER_SIZE_BYTES: i32 = 10;
 pub const FLAG_USER_TYPE: u16 = 0x0001;
 pub const FLAG_HAS_SCHEMA: u16 = 0x0002;
 pub const FLAG_COMPACT_FOOTER: u16 = 0x0020;
@@ -54,17 +52,9 @@ pub enum TypeCode {
     ArrDouble = 17,
     ArrChar = 18,
     ArrBool = 19,
-    // arrays of standard objects
-    ArrString = 20,
-    ArrUuid = 21,
-    ArrTimestamp = 34,
-    ArrDate = 22,
-    ArrTime = 37,
-    ArrDecimal = 31,
     // object collections
     ArrObj = 23,
     Collection = 24,
-    Map = 25,
     ArrEnum = 29,
     ComplexObj = 103,
     Null = 101,
@@ -72,7 +62,6 @@ pub enum TypeCode {
 }
 
 impl TryFrom<u8> for TypeCode {
-    //TODO: rewrite
     type Error = IgniteError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -100,15 +89,8 @@ impl TryFrom<u8> for TypeCode {
             17 => Ok(TypeCode::ArrDouble),
             18 => Ok(TypeCode::ArrChar),
             19 => Ok(TypeCode::ArrBool),
-            20 => Ok(TypeCode::ArrString),
-            21 => Ok(TypeCode::ArrUuid),
-            34 => Ok(TypeCode::ArrTimestamp),
-            22 => Ok(TypeCode::ArrDate),
-            37 => Ok(TypeCode::ArrTime),
-            31 => Ok(TypeCode::ArrDecimal),
             23 => Ok(TypeCode::ArrObj),
             24 => Ok(TypeCode::Collection),
-            25 => Ok(TypeCode::Map),
             27 => Ok(TypeCode::WrappedData),
             29 => Ok(TypeCode::ArrEnum),
             103 => Ok(TypeCode::ComplexObj),
@@ -126,54 +108,38 @@ pub(crate) enum Flag {
     Failure { err_msg: String },
 }
 
-/// Returns binary repr of standard request header
-pub(crate) fn new_req_header_bytes(payload_len: usize, op_code: i16) -> Vec<u8> {
-    //TODO: move to connection
-    let mut data = Vec::<u8>::new();
-    data.append(&mut pack_i32(payload_len as i32 + REQ_HEADER_SIZE_BYTES));
-    data.append(&mut pack_i16(op_code));
-    data.append(&mut pack_i64(0)); //TODO: do smth with id
-    data
-}
-
-pub fn pack_data_obj(code: TypeCode, data: &mut Vec<u8>) -> Vec<u8> {
-    let mut bytes = vec![code as u8];
-    bytes.append(data);
-    bytes
-}
-
 /// Reads data objects that are wrapped in the WrappedData(type code = 27)
-pub fn read_wrapped_data<T: UnpackType>(reader: &mut impl Read) -> IgniteResult<Option<T>> {
+pub fn read_wrapped_data<T: ReadableType>(reader: &mut impl Read) -> IgniteResult<Option<T>> {
     let type_code = TypeCode::try_from(read_u8(reader)?)?;
     match type_code {
         TypeCode::WrappedData => {
             read_i32(reader)?; // skip len
-            let value = T::unpack(reader);
+            let value = T::read(reader);
             read_i32(reader)?; // skip offset
             value
         }
-        _ => T::unpack_unwrapped(type_code, reader),
+        _ => T::read_unwrapped(type_code, reader),
     }
 }
 
 /// This function is basically a String's PackType implementation but for &str.
 /// It should be used only for strings in request bodies (like cache creation, configuration etc.)
 /// not for KV (a.k.a DataObject)
-pub(crate) fn pack_str(value: &str) -> Vec<u8> {
+pub(crate) fn write_str(value: &str) -> Vec<u8> {
     let value_bytes = value.as_bytes();
     let mut bytes = Vec::<u8>::new();
     bytes.push(TypeCode::String as u8);
-    bytes.append(&mut pack_i32(value_bytes.len() as i32));
+    bytes.append(&mut write_i32(value_bytes.len() as i32));
     bytes.extend_from_slice(&value_bytes);
     bytes
 }
 
 //// Read functions. No TypeCode, no NULL checking
 
-pub fn pack_string(value: &str) -> Vec<u8> {
+pub fn write_string(value: &str) -> Vec<u8> {
     let value_bytes = value.as_bytes();
     let mut bytes = Vec::<u8>::new();
-    bytes.append(&mut pack_i32(value_bytes.len() as i32));
+    bytes.append(&mut write_i32(value_bytes.len() as i32));
     bytes.extend_from_slice(&value_bytes);
     bytes
 }
@@ -199,11 +165,11 @@ pub fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
     }
 }
 
-pub fn pack_bool(v: bool) -> Vec<u8> {
+pub fn write_bool(v: bool) -> Vec<u8> {
     if v {
-        pack_u8(1u8)
+        write_u8(1u8)
     } else {
-        pack_u8(0u8)
+        write_u8(0u8)
     }
 }
 
@@ -215,7 +181,7 @@ pub fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
     }
 }
 
-pub fn pack_u8(v: u8) -> Vec<u8> {
+pub fn write_u8(v: u8) -> Vec<u8> {
     u8::to_le_bytes(v).to_vec()
 }
 
@@ -227,7 +193,7 @@ pub fn read_i8(reader: &mut impl Read) -> io::Result<i8> {
     }
 }
 
-pub fn pack_i8(v: i8) -> Vec<u8> {
+pub fn write_i8(v: i8) -> Vec<u8> {
     i8::to_le_bytes(v).to_vec()
 }
 
@@ -239,7 +205,7 @@ pub fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
     }
 }
 
-pub fn pack_u16(v: u16) -> Vec<u8> {
+pub fn write_u16(v: u16) -> Vec<u8> {
     u16::to_le_bytes(v).to_vec()
 }
 
@@ -251,7 +217,7 @@ pub fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
     }
 }
 
-pub fn pack_i16(v: i16) -> Vec<u8> {
+pub fn write_i16(v: i16) -> Vec<u8> {
     i16::to_le_bytes(v).to_vec()
 }
 
@@ -263,7 +229,7 @@ pub fn read_i32(reader: &mut impl Read) -> io::Result<i32> {
     }
 }
 
-pub fn pack_i32(v: i32) -> Vec<u8> {
+pub fn write_i32(v: i32) -> Vec<u8> {
     i32::to_le_bytes(v).to_vec()
 }
 
@@ -275,7 +241,7 @@ pub fn read_u32(reader: &mut impl Read) -> io::Result<u32> {
     }
 }
 
-pub fn pack_u32(v: u32) -> Vec<u8> {
+pub fn write_u32(v: u32) -> Vec<u8> {
     u32::to_le_bytes(v).to_vec()
 }
 
@@ -295,11 +261,11 @@ pub fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
     }
 }
 
-pub fn pack_u64(v: u64) -> Vec<u8> {
+pub fn write_u64(v: u64) -> Vec<u8> {
     u64::to_le_bytes(v).to_vec()
 }
 
-pub fn pack_i64(v: i64) -> Vec<u8> {
+pub fn write_i64(v: i64) -> Vec<u8> {
     i64::to_le_bytes(v).to_vec()
 }
 
@@ -311,7 +277,7 @@ pub fn read_f32(reader: &mut impl Read) -> io::Result<f32> {
     }
 }
 
-pub fn pack_f32(v: f32) -> Vec<u8> {
+pub fn write_f32(v: f32) -> Vec<u8> {
     f32::to_le_bytes(v).to_vec()
 }
 
@@ -323,7 +289,7 @@ pub fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
     }
 }
 
-pub fn pack_f64(v: f64) -> Vec<u8> {
+pub fn write_f64(v: f64) -> Vec<u8> {
     f64::to_le_bytes(v).to_vec()
 }
 
@@ -349,9 +315,9 @@ pub fn read_uuid(reader: &mut impl Read) -> io::Result<Uuid> {
     })
 }
 
-pub fn pack_uuid(val: Uuid) -> Vec<u8> {
-    let mut bytes = pack_u64(val.most_significant_bits);
-    bytes.append(&mut pack_u64(val.least_significant_bits));
+pub fn write_uuid(val: Uuid) -> Vec<u8> {
+    let mut bytes = write_u64(val.most_significant_bits);
+    bytes.append(&mut write_u64(val.least_significant_bits));
     bytes
 }
 
@@ -361,9 +327,9 @@ pub fn read_enum(reader: &mut impl Read) -> io::Result<Enum> {
     Ok(Enum { type_id, ordinal })
 }
 
-pub fn pack_enum(val: Enum) -> Vec<u8> {
-    let mut bytes = pack_i32(val.type_id);
-    bytes.append(&mut pack_i32(val.ordinal));
+pub fn write_enum(val: Enum) -> Vec<u8> {
+    let mut bytes = write_i32(val.type_id);
+    bytes.append(&mut write_i32(val.ordinal));
     bytes
 }
 
@@ -376,9 +342,9 @@ pub fn read_timestamp(reader: &mut impl Read) -> io::Result<Timestamp> {
     })
 }
 
-pub fn pack_timestamp(val: Timestamp) -> Vec<u8> {
-    let mut bytes = pack_i64(val.msecs_since_epoch);
-    bytes.append(&mut pack_i32(val.msec_fraction_in_nsecs));
+pub fn write_timestamp(val: Timestamp) -> Vec<u8> {
+    let mut bytes = write_i64(val.msecs_since_epoch);
+    bytes.append(&mut write_i32(val.msec_fraction_in_nsecs));
     bytes
 }
 
@@ -387,8 +353,8 @@ pub fn read_date(reader: &mut impl Read) -> io::Result<Date> {
     Ok(Date { msecs_since_epoch })
 }
 
-pub fn pack_date(val: Date) -> Vec<u8> {
-    pack_i64(val.msecs_since_epoch)
+pub fn write_date(val: Date) -> Vec<u8> {
+    write_i64(val.msecs_since_epoch)
 }
 
 pub fn read_time(reader: &mut impl Read) -> io::Result<Time> {
@@ -396,6 +362,6 @@ pub fn read_time(reader: &mut impl Read) -> io::Result<Time> {
     Ok(Time { value })
 }
 
-pub fn pack_time(val: Time) -> Vec<u8> {
-    pack_i64(val.value)
+pub fn write_time(val: Time) -> Vec<u8> {
+    write_i64(val.value)
 }
