@@ -1,17 +1,17 @@
-use std::io;
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
 use crate::handshake::handshake;
 use crate::protocol::Flag::{Failure, Success};
-use crate::protocol::{new_req_header_bytes, read_i32, read_i64, read_string, Flag};
-use crate::UnpackType;
-use crate::{protocol, ClientConfig, Pack, Unpack};
+use crate::protocol::{read_i32, read_i64, write_i16, write_i32, write_i64, Flag};
+use crate::{protocol, ClientConfig, ReadableReq};
+use crate::{ReadableType, WriteableReq};
 use std::sync::Mutex;
 
 const DEFAULT_BUFFER_SIZE_BYTES: usize = 1024;
+const REQ_HEADER_SIZE_BYTES: i32 = 10;
 
 pub struct Connection {
     stream: Mutex<BufReader<TcpStream>>,
@@ -34,17 +34,17 @@ impl Connection {
     }
 
     /// Send message and read response header
-    pub(crate) fn send(&self, op_code: OpCode, data: impl Pack) -> IgniteResult<()> {
+    pub(crate) fn send(&self, op_code: OpCode, data: impl WriteableReq) -> IgniteResult<()> {
         let sock_lock = &mut *self.stream.lock().unwrap(); //acquire lock on socket
         Connection::send_safe(sock_lock, op_code, data)
     }
 
     /// Send message, read response header and return a response
-    pub(crate) fn send_and_read<T: Unpack>(
+    pub(crate) fn send_and_read<T: ReadableReq>(
         &self,
         op_code: OpCode,
-        data: impl Pack,
-    ) -> IgniteResult<Box<T>> {
+        data: impl WriteableReq,
+    ) -> IgniteResult<T> {
         let sock_lock = &mut *self.stream.lock().unwrap(); //acquire lock on socket
         Connection::send_and_read_safe(sock_lock, op_code, data)
     }
@@ -52,12 +52,12 @@ impl Connection {
     fn send_safe(
         buf: &mut BufReader<TcpStream>,
         op_code: OpCode,
-        data: impl Pack,
+        data: impl WriteableReq,
     ) -> IgniteResult<()> {
-        let mut data = data.pack();
+        let mut data = data.write();
 
         //create header
-        let mut bytes = new_req_header_bytes(data.len(), op_code.into());
+        let mut bytes = Connection::write_req_header(data.len(), op_code.into());
         //combine with payload
         bytes.append(&mut data);
 
@@ -73,13 +73,13 @@ impl Connection {
         }
     }
 
-    fn send_and_read_safe<T: Unpack>(
+    fn send_and_read_safe<T: ReadableReq>(
         buf: &mut BufReader<TcpStream>,
         op_code: OpCode,
-        data: impl Pack,
-    ) -> IgniteResult<Box<T>> {
+        data: impl WriteableReq,
+    ) -> IgniteResult<T> {
         Connection::send_safe(buf, op_code, data)?; //send request and read the response
-        T::unpack(buf) //unpack the input bytes into an actual type
+        T::read(buf) //unpack the input bytes into an actual type
     }
 
     /// Writes bytes directly into socket
@@ -90,6 +90,15 @@ impl Connection {
         }
     }
 
+    /// Returns binary repr of standard request header
+    fn write_req_header(payload_len: usize, op_code: i16) -> Vec<u8> {
+        let mut data = Vec::<u8>::new();
+        data.append(&mut write_i32(payload_len as i32 + REQ_HEADER_SIZE_BYTES));
+        data.append(&mut write_i16(op_code));
+        data.append(&mut write_i64(0));
+        data
+    }
+
     /// Reads standard response header
     fn read_resp_header(reader: &mut impl Read) -> IgniteResult<Flag> {
         let _ = read_i32(reader)?;
@@ -97,7 +106,7 @@ impl Connection {
         match read_i32(reader)? {
             0 => Ok(Success),
             _ => {
-                let err_msg = String::unpack(reader)?;
+                let err_msg = String::read(reader)?;
                 Ok(Failure {
                     err_msg: err_msg.unwrap(),
                 })

@@ -1,7 +1,7 @@
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, TokenStream};
 use quote::*;
 use syn::spanned::Spanned;
-use syn::{Attribute, Data, DeriveInput, Fields, FieldsNamed, Meta};
+use syn::{Data, DeriveInput, Fields, FieldsNamed};
 
 #[proc_macro_derive(IgniteObj)]
 pub fn derive_ignite_obj(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -11,12 +11,12 @@ pub fn derive_ignite_obj(item: proc_macro::TokenStream) -> proc_macro::TokenStre
     let output = match input.data {
         Data::Struct(ref st) => match st.fields {
             Fields::Named(ref fields) => {
-                let pack_tokens = impl_pack(type_name, fields);
-                let unpack_tokens = impl_unpack(type_name, fields);
+                let write_tokens = impl_write_type(type_name, fields);
+                let read_tokens = impl_read_type(type_name, fields);
 
                 quote! {
-                    #pack_tokens
-                    #unpack_tokens
+                    #write_tokens
+                    #read_tokens
                 }
             }
             _ => quote_spanned! { st.fields.span() => compile_error!("Named struct expected!");},
@@ -28,58 +28,59 @@ pub fn derive_ignite_obj(item: proc_macro::TokenStream) -> proc_macro::TokenStre
 }
 
 /// Implements PackType trait
-fn impl_pack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
+fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     let type_id: i32 = get_type_id(type_name);
     let schema_id = get_schema_id(fields);
 
     let fields_schema = fields.named.iter().map(|f| {
         let field_name = &f.ident;
         quote_spanned! { field_name.span() =>
-            schema.append(&mut ignite_rs::protocol::pack_i32(ignite_rs::utils::string_to_java_hashcode(stringify!(#field_name)))); // field id
-            schema.append(&mut ignite_rs::protocol::pack_i32(ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)); // field offset
-            fields.append(&mut self.#field_name.pack());
+            schema.append(&mut ignite_rs::protocol::write_i32(ignite_rs::utils::string_to_java_hashcode(stringify!(#field_name)))); // field id
+            schema.append(&mut ignite_rs::protocol::write_i32(ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)); // field offset
+            fields.append(&mut self.#field_name.write());
         }
     });
 
     quote! {
-        impl PackType for #type_name {
-            fn pack(&self) -> Vec<u8> {
+        impl WritableType for #type_name {
+            fn write(&self) -> Vec<u8> {
                 let mut data: Vec<u8> = Vec::new();
-                data.append(&mut ignite_rs::protocol::pack_u8(1)); //version. always 1
-                data.append(&mut ignite_rs::protocol::pack_u16(ignite_rs::protocol::FLAG_USER_TYPE|ignite_rs::protocol::FLAG_HAS_SCHEMA)); //flags
-                data.append(&mut ignite_rs::protocol::pack_i32(#type_id)); //type_id
+                data.push(ignite_rs::protocol::TypeCode::ComplexObj as u8);
+                data.append(&mut ignite_rs::protocol::write_u8(1)); //version. always 1
+                data.append(&mut ignite_rs::protocol::write_u16(ignite_rs::protocol::FLAG_USER_TYPE|ignite_rs::protocol::FLAG_HAS_SCHEMA)); //flags
+                data.append(&mut ignite_rs::protocol::write_i32(#type_id)); //type_id
 
                 //prepare buffers
                 let mut fields: Vec<u8> = Vec::new();
                 let mut schema: Vec<u8> = Vec::new();
 
-                //pack fields
+                //write fields
                 #( #fields_schema)*
 
-                data.append(&mut ignite_rs::protocol::pack_i32(ignite_rs::utils::bytes_to_java_hashcode(fields.as_slice()))); //hash_code. used for keys
-                data.append(&mut ignite_rs::protocol::pack_i32(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32 + schema.len() as i32)); //length. including header
-                data.append(&mut ignite_rs::protocol::pack_i32(#schema_id)); //schema_id
-                data.append(&mut ignite_rs::protocol::pack_i32(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)); //schema offset
+                data.append(&mut ignite_rs::protocol::write_i32(ignite_rs::utils::bytes_to_java_hashcode(fields.as_slice()))); //hash_code. used for keys
+                data.append(&mut ignite_rs::protocol::write_i32(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32 + schema.len() as i32)); //length. including header
+                data.append(&mut ignite_rs::protocol::write_i32(#schema_id)); //schema_id
+                data.append(&mut ignite_rs::protocol::write_i32(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)); //schema offset
                 data.append(&mut fields); //object fields
                 data.append(&mut schema); //schema
                 // no raw_data_offset written
-                ignite_rs::protocol::pack_data_obj(ignite_rs::protocol::TypeCode::ComplexObj, &mut data)
+                data
             }
         }
     }
 }
 
-/// Implements Unpack trait
-fn impl_unpack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
+/// Implements Unwrite trait
+fn impl_read_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     let exp_type_id: i32 = get_type_id(type_name);
     let fields_count = fields.named.len();
 
-    let fields_unpack = fields.named.iter().map(|f| {
+    let fields_read = fields.named.iter().map(|f| {
         let field_name = &f.ident;
         let ty = &f.ty;
         let formatted_name = format_ident!("_{}", field_name.as_ref().unwrap().to_string());
         quote_spanned! { field_name.span() =>
-            let #formatted_name = <#ty>::unpack(reader)?.unwrap(); // get option value
+            let #formatted_name = <#ty>::read(reader)?.unwrap(); // get option value
         }
     });
 
@@ -90,8 +91,8 @@ fn impl_unpack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     });
 
     quote! {
-            impl UnpackType for #type_name {
-            fn unpack_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+            impl ReadableType for #type_name {
+            fn read_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
                 let value: Option<Self> = match type_code {
                     TypeCode::Null => None,
                     _ => {
@@ -120,7 +121,7 @@ fn impl_unpack(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
                         read_i32(reader)?; // read schema id
                         read_i32(reader)?; // read schema offset
 
-                        #( #fields_unpack)*
+                        #( #fields_read)*
 
                         // read schema
                         for _ in 0..#fields_count {

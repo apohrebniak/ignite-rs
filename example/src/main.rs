@@ -1,13 +1,12 @@
-use ignite_rs::cache::{Cache, CacheConfiguration};
+use ignite_rs::cache::Cache;
 use ignite_rs::error::{IgniteError, IgniteResult};
 use ignite_rs::protocol::{
     read_i32, read_i64, read_u16, read_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
     FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES,
 };
-use ignite_rs::{ClientConfig, Enum, Ignite, IgniteObj, PackType, UnpackType};
+use ignite_rs::{ClientConfig, Ignite, ReadableType, WritableType};
 use ignite_rs_derive::IgniteObj;
-use std::convert::TryFrom;
-use std::fs::read;
+
 use std::io::Read;
 
 fn main() {
@@ -21,6 +20,8 @@ fn main() {
     }
 
     let hello: Cache<MyType, MyOtherType> = ignite.get_or_create_cache("test2").unwrap();
+
+    println!("{:?}", ignite.get_cache_config("test2").unwrap());
 
     let key = MyType {
         bar: "AAAAA".into(),
