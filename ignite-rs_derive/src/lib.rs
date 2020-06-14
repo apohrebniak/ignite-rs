@@ -83,7 +83,7 @@ fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     }
 }
 
-/// Implements Unwrite trait
+/// Implements ReadableType trait
 fn impl_read_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     let exp_type_id: i32 = get_type_id(type_name);
     let fields_count = fields.named.len();
