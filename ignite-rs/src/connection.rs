@@ -6,29 +6,51 @@ use crate::error::{IgniteError, IgniteResult};
 use crate::handshake::handshake;
 use crate::protocol::Flag::{Failure, Success};
 use crate::protocol::{read_i32, read_i64, write_i16, write_i32, write_i64, Flag};
-use crate::{protocol, ClientConfig, ReadableReq};
+use crate::{ClientConfig, ReadableReq};
 use crate::{ReadableType, WriteableReq};
 use bufstream::BufStream;
+#[cfg(feature = "ssl")]
+use rustls;
 use std::io;
-use std::sync::Mutex;
+use std::option::Option::Some;
+#[allow(unused_imports)]
+use std::sync::{Arc, Mutex};
+#[cfg(feature = "ssl")]
+use webpki;
 
 const DFLT_READ_BUF_SIZE: usize = 1024;
 const DFLT_WRITE_BUF_SIZE: usize = 1024;
 const REQ_HEADER_SIZE_BYTES: i32 = 10;
 
 pub struct Connection {
+    #[cfg(not(feature = "ssl"))]
     stream: Mutex<BufStream<TcpStream>>,
+    #[cfg(feature = "ssl")]
+    stream: Mutex<BufStream<rustls::StreamOwned<rustls::ClientSession, TcpStream>>>,
 }
 
 impl Connection {
     pub(crate) fn new(conf: &ClientConfig) -> IgniteResult<Connection> {
         match TcpStream::connect(&conf.addr) {
             Ok(stream) => {
-                let mut stream =
-                    BufStream::with_capacities(DFLT_READ_BUF_SIZE, DFLT_WRITE_BUF_SIZE, stream);
-                match handshake(&mut stream, protocol::VERSION) {
+                // apply tcp configs
+                Connection::configure_tcp(&stream, conf)?;
+
+                // wrap in tls stream if this feature enabled
+                #[cfg(feature = "ssl")]
+                let mut stream = Connection::wrap_tls_stream(&conf.tls_conf, stream)?;
+
+                // wrap in buffered stream
+                let mut buffered_stream = BufStream::with_capacities(
+                    conf.tcp_read_buff_size.unwrap_or(DFLT_READ_BUF_SIZE),
+                    conf.tcp_write_buff_size.unwrap_or(DFLT_WRITE_BUF_SIZE),
+                    stream,
+                );
+
+                // try initial handshake
+                match handshake(&mut buffered_stream, conf) {
                     Ok(_) => Ok(Connection {
-                        stream: Mutex::new(stream),
+                        stream: Mutex::new(buffered_stream),
                     }),
                     Err(err) => Err(err),
                 }
@@ -108,5 +130,31 @@ impl Connection {
                 })
             }
         }
+    }
+
+    #[cfg(feature = "ssl")]
+    fn wrap_tls_stream(
+        conf: &(rustls::ClientConfig, String),
+        stream: TcpStream,
+    ) -> IgniteResult<rustls::StreamOwned<rustls::ClientSession, TcpStream>> {
+        let hostname = webpki::DNSNameRef::try_from_ascii_str(&conf.1)?;
+        let tls_session = rustls::ClientSession::new(&Arc::new(conf.0.clone()), hostname);
+        let tls_stream = rustls::StreamOwned::new(tls_session, stream);
+        Ok(tls_stream)
+    }
+
+    fn configure_tcp(stream: &TcpStream, conf: &ClientConfig) -> io::Result<()> {
+        stream.set_read_timeout(conf.tcp_read_timeout)?;
+        stream.set_write_timeout(conf.tcp_write_timeout)?;
+        if let Some(nodelay) = conf.tcp_nodelay {
+            stream.set_nodelay(nodelay)?;
+        }
+        if let Some(nonblocking) = conf.tcp_nonblocking {
+            stream.set_nonblocking(nonblocking)?;
+        }
+        if let Some(ttl) = conf.tcp_ttl {
+            stream.set_ttl(ttl)?;
+        }
+        Ok(())
     }
 }

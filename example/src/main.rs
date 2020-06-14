@@ -10,9 +10,10 @@ use ignite_rs_derive::IgniteObj;
 use std::io::{Read, Write};
 
 fn main() {
-    let client_config = ClientConfig {
-        addr: String::from("127.0.0.1:10800"),
-    };
+    let mut client_config = ClientConfig::new("localhost:10800");
+    // client_config.username = Some("ignite".into());
+    // client_config.password = Some("ignite".into());
+
     let mut ignite = ignite_rs::new_client(client_config).unwrap();
 
     if let Ok(names) = ignite.get_cache_names() {

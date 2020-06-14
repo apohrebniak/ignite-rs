@@ -1,6 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::io::Error as IoError;
 use std::{convert, error};
+#[cfg(feature = "ssl")]
+use webpki::InvalidDNSNameError;
 
 pub type IgniteResult<T> = Result<T, IgniteError>;
 
@@ -40,6 +42,15 @@ impl convert::From<Option<String>> for IgniteError {
             None => IgniteError {
                 desc: "Ignite client error! No description provided".to_owned(),
             },
+        }
+    }
+}
+
+#[cfg(feature = "ssl")]
+impl convert::From<InvalidDNSNameError> for IgniteError {
+    fn from(err: InvalidDNSNameError) -> Self {
+        IgniteError {
+            desc: err.to_string(),
         }
     }
 }

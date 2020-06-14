@@ -15,6 +15,10 @@ use std::io;
 use std::io::{Read, Write};
 use std::sync::Arc;
 
+#[cfg(feature = "ssl")]
+use rustls;
+use std::time::Duration;
+
 mod api;
 pub mod cache;
 mod connection;
@@ -53,7 +57,53 @@ pub trait IgniteObj: WritableType + ReadableType {}
 /// Ignite Client configuration
 #[derive(Clone)]
 pub struct ClientConfig {
-    pub addr: String, //TODO: make trait aka IntoIgniteAddress
+    pub addr: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub tcp_nodelay: Option<bool>,
+    pub tcp_nonblocking: Option<bool>,
+    pub tcp_read_timeout: Option<Duration>,
+    pub tcp_write_timeout: Option<Duration>,
+    pub tcp_ttl: Option<u32>,
+    pub tcp_read_buff_size: Option<usize>,
+    pub tcp_write_buff_size: Option<usize>,
+    #[cfg(feature = "ssl")]
+    pub tls_conf: (rustls::ClientConfig, String),
+}
+
+impl ClientConfig {
+    #[cfg(not(feature = "ssl"))]
+    pub fn new(addr: &str) -> ClientConfig {
+        ClientConfig {
+            addr: addr.into(),
+            username: None,
+            password: None,
+            tcp_nodelay: None,
+            tcp_nonblocking: None,
+            tcp_read_timeout: None,
+            tcp_write_timeout: None,
+            tcp_ttl: None,
+            tcp_read_buff_size: None,
+            tcp_write_buff_size: None,
+        }
+    }
+
+    #[cfg(feature = "ssl")]
+    pub fn new(addr: &str, client_conf: rustls::ClientConfig, hostname: String) -> ClientConfig {
+        ClientConfig {
+            addr: addr.into(),
+            username: None,
+            password: None,
+            tcp_nodelay: None,
+            tcp_nonblocking: None,
+            tcp_read_timeout: None,
+            tcp_write_timeout: None,
+            tcp_ttl: None,
+            tcp_read_buff_size: None,
+            tcp_write_buff_size: None,
+            tls_conf: (client_conf, hostname),
+        }
+    }
 }
 
 /// Create new Ignite client using provided configuration
