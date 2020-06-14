@@ -17,11 +17,6 @@ pub const FLAG_OFFSET_TWO_BYTES: u16 = 0x0010;
 
 pub const COMPLEX_OBJ_HEADER_LEN: i32 = 24;
 
-/// Protocol version supported by client
-pub(crate) const VERSION: Version = Version(1, 2, 0);
-
-pub(crate) struct Version(pub(crate) i16, pub(crate) i16, pub(crate) i16);
-
 /// All Data types described in Binary Protocol
 /// https://apacheignite.readme.io/docs/binary-client-protocol-data-format
 #[derive(PartialOrd, PartialEq)]
