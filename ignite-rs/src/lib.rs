@@ -11,7 +11,8 @@ use crate::error::IgniteResult;
 use crate::protocol::{read_wrapped_data, TypeCode};
 use crate::utils::string_to_java_hashcode;
 
-use std::io::Read;
+use std::io;
+use std::io::{Read, Write};
 use std::sync::Arc;
 
 mod api;
@@ -25,7 +26,8 @@ pub mod utils;
 /// Implementations of this trait could be serialized into Ignite byte sequence
 /// It is indented to be implemented by structs which represents requests
 pub(crate) trait WriteableReq {
-    fn write(self) -> Vec<u8>;
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()>;
+    fn size(&self) -> usize;
 }
 /// Implementations of this trait could be deserialized from Ignite byte sequence
 /// It is indented to be implemented by structs which represents requests. Acts as a closure
@@ -35,7 +37,8 @@ pub(crate) trait ReadableReq: Sized {
 }
 
 pub trait WritableType {
-    fn write(&self) -> Vec<u8>;
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()>;
+    fn size(&self) -> usize;
 }
 
 pub trait ReadableType: Sized {
@@ -217,42 +220,6 @@ impl Ignite for Client {
         self.conn
             .send(OpCode::CacheDestroy, CacheDestroyReq::from(name))
     }
-}
-
-#[derive(Debug, Copy, Clone)]
-#[allow(dead_code)]
-///A universally unique identifier (UUID) is a 128-bit number used to identify information in computer systems.
-pub struct Uuid {
-    ///64-bit number in little endian, representing 64 most significant bits of UUID.
-    pub most_significant_bits: u64,
-    ///64-bit number in little endian, representing 64 least significant bits of UUID.
-    pub least_significant_bits: u64,
-}
-
-#[derive(Debug, Copy, Clone)]
-#[allow(dead_code)]
-pub struct Timestamp {
-    /// Number of milliseconds elapsed since 00:00:00 1 Jan 1970 UTC.
-    /// This format widely known as a Unix or POSIX time.
-    pub msecs_since_epoch: i64,
-    /// Nanosecond fraction of a millisecond.
-    pub msec_fraction_in_nsecs: i32,
-}
-
-#[derive(Debug, Copy, Clone)]
-#[allow(dead_code)]
-///Date, represented as a number of milliseconds elapsed since 00:00:00 1 Jan 1970 UTC.
-///This format widely known as a Unix or POSIX time.
-pub struct Date {
-    pub msecs_since_epoch: i64,
-}
-
-#[derive(Debug, Copy, Clone)]
-#[allow(dead_code)]
-///Time, represented as a number of milliseconds elapsed since midnight, i.e. 00:00:00 UTC.
-pub struct Time {
-    ///Number of milliseconds elapsed since 00:00:00 UTC.
-    pub value: i64,
 }
 
 #[derive(Debug, Copy, Clone)]
