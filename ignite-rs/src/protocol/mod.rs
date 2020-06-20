@@ -1,9 +1,9 @@
 use std::io;
-use std::io::{ErrorKind, Read};
+use std::io::{ErrorKind, Read, Write};
 
 use crate::error::{IgniteError, IgniteResult};
 
-use crate::{Date, Enum, ReadableType, Time, Timestamp, Uuid};
+use crate::{Enum, ReadableType};
 use std::convert::TryFrom;
 
 pub(crate) mod cache_config;
@@ -125,23 +125,21 @@ pub fn read_wrapped_data<T: ReadableType>(reader: &mut impl Read) -> IgniteResul
 /// This function is basically a String's PackType implementation but for &str.
 /// It should be used only for strings in request bodies (like cache creation, configuration etc.)
 /// not for KV (a.k.a DataObject)
-pub(crate) fn write_str(value: &str) -> Vec<u8> {
+pub(crate) fn write_string_type_code(writer: &mut dyn Write, value: &str) -> io::Result<()> {
     let value_bytes = value.as_bytes();
-    let mut bytes = Vec::<u8>::new();
-    bytes.push(TypeCode::String as u8);
-    bytes.append(&mut write_i32(value_bytes.len() as i32));
-    bytes.extend_from_slice(&value_bytes);
-    bytes
+    write_u8(writer, TypeCode::String as u8)?;
+    write_i32(writer, value_bytes.len() as i32)?;
+    writer.write_all(value_bytes)?;
+    Ok(())
 }
 
 //// Read functions. No TypeCode, no NULL checking
 
-pub fn write_string(value: &str) -> Vec<u8> {
+pub fn write_string(writer: &mut dyn Write, value: &str) -> io::Result<()> {
     let value_bytes = value.as_bytes();
-    let mut bytes = Vec::<u8>::new();
-    bytes.append(&mut write_i32(value_bytes.len() as i32));
-    bytes.extend_from_slice(&value_bytes);
-    bytes
+    write_i32(writer, value_bytes.len() as i32)?;
+    writer.write_all(value_bytes)?;
+    Ok(())
 }
 
 pub fn read_string(reader: &mut impl Read) -> io::Result<String> {
@@ -165,11 +163,11 @@ pub fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
     }
 }
 
-pub fn write_bool(v: bool) -> Vec<u8> {
+pub fn write_bool(writer: &mut dyn Write, v: bool) -> io::Result<()> {
     if v {
-        write_u8(1u8)
+        write_u8(writer, 1u8)
     } else {
-        write_u8(0u8)
+        write_u8(writer, 0u8)
     }
 }
 
@@ -181,8 +179,9 @@ pub fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
     }
 }
 
-pub fn write_u8(v: u8) -> Vec<u8> {
-    u8::to_le_bytes(v).to_vec()
+pub fn write_u8(writer: &mut dyn Write, v: u8) -> io::Result<()> {
+    writer.write_all(&u8::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_i8(reader: &mut impl Read) -> io::Result<i8> {
@@ -193,8 +192,9 @@ pub fn read_i8(reader: &mut impl Read) -> io::Result<i8> {
     }
 }
 
-pub fn write_i8(v: i8) -> Vec<u8> {
-    i8::to_le_bytes(v).to_vec()
+pub fn write_i8(writer: &mut dyn Write, v: i8) -> io::Result<()> {
+    writer.write_all(&i8::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
@@ -205,8 +205,9 @@ pub fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
     }
 }
 
-pub fn write_u16(v: u16) -> Vec<u8> {
-    u16::to_le_bytes(v).to_vec()
+pub fn write_u16(writer: &mut dyn Write, v: u16) -> io::Result<()> {
+    writer.write_all(&u16::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
@@ -217,8 +218,9 @@ pub fn read_i16(reader: &mut impl Read) -> io::Result<i16> {
     }
 }
 
-pub fn write_i16(v: i16) -> Vec<u8> {
-    i16::to_le_bytes(v).to_vec()
+pub fn write_i16(writer: &mut dyn Write, v: i16) -> io::Result<()> {
+    writer.write_all(&i16::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_i32(reader: &mut impl Read) -> io::Result<i32> {
@@ -229,8 +231,9 @@ pub fn read_i32(reader: &mut impl Read) -> io::Result<i32> {
     }
 }
 
-pub fn write_i32(v: i32) -> Vec<u8> {
-    i32::to_le_bytes(v).to_vec()
+pub fn write_i32(writer: &mut dyn Write, v: i32) -> io::Result<()> {
+    writer.write_all(&i32::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_u32(reader: &mut impl Read) -> io::Result<u32> {
@@ -241,8 +244,9 @@ pub fn read_u32(reader: &mut impl Read) -> io::Result<u32> {
     }
 }
 
-pub fn write_u32(v: u32) -> Vec<u8> {
-    u32::to_le_bytes(v).to_vec()
+pub fn write_u32(writer: &mut dyn Write, v: u32) -> io::Result<()> {
+    writer.write_all(&u32::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
@@ -253,6 +257,11 @@ pub fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
     }
 }
 
+pub fn write_u64(writer: &mut dyn Write, v: u64) -> io::Result<()> {
+    writer.write_all(&u64::to_le_bytes(v))?;
+    Ok(())
+}
+
 pub fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
     let mut new_alloc = [0u8; 8];
     match reader.read_exact(&mut new_alloc[..]) {
@@ -261,12 +270,9 @@ pub fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
     }
 }
 
-pub fn write_u64(v: u64) -> Vec<u8> {
-    u64::to_le_bytes(v).to_vec()
-}
-
-pub fn write_i64(v: i64) -> Vec<u8> {
-    i64::to_le_bytes(v).to_vec()
+pub fn write_i64(writer: &mut dyn Write, v: i64) -> io::Result<()> {
+    writer.write_all(&i64::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_f32(reader: &mut impl Read) -> io::Result<f32> {
@@ -277,8 +283,9 @@ pub fn read_f32(reader: &mut impl Read) -> io::Result<f32> {
     }
 }
 
-pub fn write_f32(v: f32) -> Vec<u8> {
-    f32::to_le_bytes(v).to_vec()
+pub fn write_f32(writer: &mut dyn Write, v: f32) -> io::Result<()> {
+    writer.write_all(&f32::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
@@ -289,8 +296,9 @@ pub fn read_f64(reader: &mut impl Read) -> io::Result<f64> {
     }
 }
 
-pub fn write_f64(v: f64) -> Vec<u8> {
-    f64::to_le_bytes(v).to_vec()
+pub fn write_f64(writer: &mut dyn Write, v: f64) -> io::Result<()> {
+    writer.write_all(&f64::to_le_bytes(v))?;
+    Ok(())
 }
 
 pub fn read_primitive_arr<T, R, F>(reader: &mut R, read_fn: F) -> io::Result<Vec<T>>
@@ -306,62 +314,14 @@ where
     Ok(payload)
 }
 
-pub fn read_uuid(reader: &mut impl Read) -> io::Result<Uuid> {
-    let most_significant_bits = read_u64(reader)?;
-    let least_significant_bits = read_u64(reader)?;
-    Ok(Uuid {
-        most_significant_bits,
-        least_significant_bits,
-    })
-}
-
-pub fn write_uuid(val: Uuid) -> Vec<u8> {
-    let mut bytes = write_u64(val.most_significant_bits);
-    bytes.append(&mut write_u64(val.least_significant_bits));
-    bytes
-}
-
 pub fn read_enum(reader: &mut impl Read) -> io::Result<Enum> {
     let type_id = read_i32(reader)?;
     let ordinal = read_i32(reader)?;
     Ok(Enum { type_id, ordinal })
 }
 
-pub fn write_enum(val: Enum) -> Vec<u8> {
-    let mut bytes = write_i32(val.type_id);
-    bytes.append(&mut write_i32(val.ordinal));
-    bytes
-}
-
-pub fn read_timestamp(reader: &mut impl Read) -> io::Result<Timestamp> {
-    let msecs_since_epoch = read_i64(reader)?;
-    let msec_fraction_in_nsecs = read_i32(reader)?;
-    Ok(Timestamp {
-        msecs_since_epoch,
-        msec_fraction_in_nsecs,
-    })
-}
-
-pub fn write_timestamp(val: Timestamp) -> Vec<u8> {
-    let mut bytes = write_i64(val.msecs_since_epoch);
-    bytes.append(&mut write_i32(val.msec_fraction_in_nsecs));
-    bytes
-}
-
-pub fn read_date(reader: &mut impl Read) -> io::Result<Date> {
-    let msecs_since_epoch = read_i64(reader)?;
-    Ok(Date { msecs_since_epoch })
-}
-
-pub fn write_date(val: Date) -> Vec<u8> {
-    write_i64(val.msecs_since_epoch)
-}
-
-pub fn read_time(reader: &mut impl Read) -> io::Result<Time> {
-    let value = read_i64(reader)?;
-    Ok(Time { value })
-}
-
-pub fn write_time(val: Time) -> Vec<u8> {
-    write_i64(val.value)
+pub fn write_enum(writer: &mut dyn Write, val: Enum) -> io::Result<()> {
+    write_i32(writer, val.type_id)?;
+    write_i32(writer, val.ordinal)?;
+    Ok(())
 }

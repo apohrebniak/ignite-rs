@@ -27,7 +27,7 @@ pub fn derive_ignite_obj(item: proc_macro::TokenStream) -> proc_macro::TokenStre
     proc_macro::TokenStream::from(output)
 }
 
-/// Implements PackType trait
+/// Implements WritableType trait
 fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     let type_id: i32 = get_type_id(type_name);
     let schema_id = get_schema_id(fields);
@@ -35,20 +35,26 @@ fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     let fields_schema = fields.named.iter().map(|f| {
         let field_name = &f.ident;
         quote_spanned! { field_name.span() =>
-            schema.append(&mut ignite_rs::protocol::write_i32(ignite_rs::utils::string_to_java_hashcode(stringify!(#field_name)))); // field id
-            schema.append(&mut ignite_rs::protocol::write_i32(ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)); // field offset
-            fields.append(&mut self.#field_name.write());
+            ignite_rs::protocol::write_i32(&mut schema, ignite_rs::utils::string_to_java_hashcode(stringify!(#field_name)))?; // field id
+            ignite_rs::protocol::write_i32(&mut schema, ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)?; // field offset
+            self.#field_name.write(&mut fields)?;
+        }
+    });
+
+    let fields_schema_size = fields.named.iter().map(|f| {
+        let field_name = &f.ident;
+        quote_spanned! { field_name.span() =>
+            size += self.#field_name.size() + 4 + 4; // field's size, field id, fields offset
         }
     });
 
     quote! {
         impl WritableType for #type_name {
-            fn write(&self) -> Vec<u8> {
-                let mut data: Vec<u8> = Vec::new();
-                data.push(ignite_rs::protocol::TypeCode::ComplexObj as u8);
-                data.append(&mut ignite_rs::protocol::write_u8(1)); //version. always 1
-                data.append(&mut ignite_rs::protocol::write_u16(ignite_rs::protocol::FLAG_USER_TYPE|ignite_rs::protocol::FLAG_HAS_SCHEMA)); //flags
-                data.append(&mut ignite_rs::protocol::write_i32(#type_id)); //type_id
+            fn write(&self, writer: &mut dyn Write) -> std::io::Result<()> {
+                ignite_rs::protocol::write_u8(writer, ignite_rs::protocol::TypeCode::ComplexObj as u8)?;
+                ignite_rs::protocol::write_u8(writer,1)?; //version. always 1
+                ignite_rs::protocol::write_u16(writer, ignite_rs::protocol::FLAG_USER_TYPE|ignite_rs::protocol::FLAG_HAS_SCHEMA)?; //flags
+                ignite_rs::protocol::write_i32(writer, #type_id)?; //type_id
 
                 //prepare buffers
                 let mut fields: Vec<u8> = Vec::new();
@@ -57,14 +63,21 @@ fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
                 //write fields
                 #( #fields_schema)*
 
-                data.append(&mut ignite_rs::protocol::write_i32(ignite_rs::utils::bytes_to_java_hashcode(fields.as_slice()))); //hash_code. used for keys
-                data.append(&mut ignite_rs::protocol::write_i32(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32 + schema.len() as i32)); //length. including header
-                data.append(&mut ignite_rs::protocol::write_i32(#schema_id)); //schema_id
-                data.append(&mut ignite_rs::protocol::write_i32(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)); //schema offset
-                data.append(&mut fields); //object fields
-                data.append(&mut schema); //schema
+                ignite_rs::protocol::write_i32(writer, ignite_rs::utils::bytes_to_java_hashcode(fields.as_slice()))?; //hash_code. used for keys
+                ignite_rs::protocol::write_i32(writer, COMPLEX_OBJ_HEADER_LEN + fields.len() as i32 + schema.len() as i32)?; //length. including header
+                ignite_rs::protocol::write_i32(writer, #schema_id)?; //schema_id
+                ignite_rs::protocol::write_i32(writer, COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)?; //schema offset
+                writer.write_all(&fields)?; //object fields
+                writer.write_all(&schema)?; //schema
                 // no raw_data_offset written
-                data
+                Ok(())
+            }
+
+            fn size(&self) -> usize {
+                let mut size = COMPLEX_OBJ_HEADER_LEN as usize;
+                //write fields and schema sized
+                #( #fields_schema_size)*
+                size
             }
         }
     }

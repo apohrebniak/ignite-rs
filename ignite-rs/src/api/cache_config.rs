@@ -1,11 +1,12 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
 use crate::cache::CacheConfiguration;
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::cache_config::{read_cache_configuration, write_cache_configuration};
-use crate::protocol::{read_i32, write_i32, write_str};
+use crate::protocol::cache_config::{get_cache_configuration_bytes, read_cache_configuration};
+use crate::protocol::{read_i32, write_i32, write_string_type_code, write_u8};
 use crate::utils::string_to_java_hashcode;
 use crate::{ReadableReq, ReadableType, WriteableReq};
+use std::io;
 
 // https://apacheignite.readme.io/docs/binary-client-protocol-cache-configuration-operations#op_cache_get_configuration
 const MAGIC_FLAG: u8 = 0;
@@ -14,8 +15,12 @@ const MAGIC_FLAG: u8 = 0;
 pub(crate) struct CacheGetNamesReq {}
 
 impl WriteableReq for CacheGetNamesReq {
-    fn write(self) -> Vec<u8> {
-        Vec::new()
+    fn write(&self, _: &mut dyn Write) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        0
     }
 }
 
@@ -52,8 +57,12 @@ impl CacheCreateWithNameReq<'_> {
 }
 
 impl WriteableReq for CacheCreateWithNameReq<'_> {
-    fn write(self) -> Vec<u8> {
-        write_str(self.name)
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_string_type_code(writer, self.name)
+    }
+
+    fn size(&self) -> usize {
+        self.name.len() + 5 // string itself, type code, len
     }
 }
 
@@ -69,8 +78,12 @@ impl CacheGetOrCreateWithNameReq<'_> {
 }
 
 impl WriteableReq for CacheGetOrCreateWithNameReq<'_> {
-    fn write(self) -> Vec<u8> {
-        write_str(self.name)
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_string_type_code(writer, self.name)
+    }
+
+    fn size(&self) -> usize {
+        self.name.len() + 5 // string itself, type code, len
     }
 }
 
@@ -80,8 +93,12 @@ pub(crate) struct CacheCreateWithConfigReq<'a> {
 }
 
 impl WriteableReq for CacheCreateWithConfigReq<'_> {
-    fn write(self) -> Vec<u8> {
-        write_cache_configuration(self.config)
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        get_cache_configuration_bytes(self.config).and_then(|bytes| writer.write_all(&bytes))
+    }
+
+    fn size(&self) -> usize {
+        get_cache_configuration_bytes(self.config).unwrap().len()
     }
 }
 
@@ -91,8 +108,12 @@ pub(crate) struct CacheGetOrCreateWithConfigReq<'a> {
 }
 
 impl WriteableReq for CacheGetOrCreateWithConfigReq<'_> {
-    fn write(self) -> Vec<u8> {
-        write_cache_configuration(self.config)
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        get_cache_configuration_bytes(self.config).and_then(|bytes| writer.write_all(&bytes))
+    }
+
+    fn size(&self) -> usize {
+        get_cache_configuration_bytes(self.config).unwrap().len()
     }
 }
 
@@ -108,12 +129,14 @@ impl CacheGetConfigReq<'_> {
 }
 
 impl WriteableReq for CacheGetConfigReq<'_> {
-    fn write(self) -> Vec<u8> {
-        let cache_id = string_to_java_hashcode(self.name);
-        let mut bytes = Vec::<u8>::new();
-        bytes.append(&mut write_i32(cache_id));
-        bytes.push(MAGIC_FLAG);
-        bytes
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_i32(writer, string_to_java_hashcode(self.name))?;
+        write_u8(writer, MAGIC_FLAG)?;
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        5 // 4 bytes for cache id and one for magic flag
     }
 }
 
@@ -141,7 +164,11 @@ impl CacheDestroyReq<'_> {
 }
 
 impl WriteableReq for CacheDestroyReq<'_> {
-    fn write(self) -> Vec<u8> {
-        write_i32(string_to_java_hashcode(self.name))
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_i32(writer, string_to_java_hashcode(self.name))
+    }
+
+    fn size(&self) -> usize {
+        4 // 4 bytes for cache id
     }
 }

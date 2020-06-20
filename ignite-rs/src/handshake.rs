@@ -2,33 +2,25 @@ use std::io::{Read, Write};
 
 use crate::api::OpCode;
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::{read_i16, read_i32, read_u8, write_i16, write_i32, Version};
+use crate::protocol::{read_i16, read_i32, read_u8, write_i16, write_i32, write_u8, Version};
 use crate::ReadableType;
 
+const MIN_HANDSHAKE_SIZE: i32 = 8;
+
 pub(crate) fn handshake<T: Read + Write>(conn: &mut T, version: Version) -> IgniteResult<()> {
-    let mut payload = Vec::<u8>::new();
-    payload.push(OpCode::Handshake as u8);
-    payload.append(&mut write_i16(version.0));
-    payload.append(&mut write_i16(version.1));
-    payload.append(&mut write_i16(version.2));
-    payload.push(2); //client code
-                     // // if let Some(x) = self.username { //TODO: implement
-                     // //     bytes.append(x.as_bytes());
-                     // // }
-                     // // if let Some() { }
-
-    // get the overall message length
-    let len = payload.len() as i32;
-
-    // insert length in the begging of message
-    let mut bytes = Vec::new();
-    bytes.append(&mut write_i32(len));
-    bytes.append(&mut payload);
+    write_i32(conn, MIN_HANDSHAKE_SIZE)?;
+    write_u8(conn, OpCode::Handshake as u8)?;
+    write_i16(conn, version.0)?;
+    write_i16(conn, version.1)?;
+    write_i16(conn, version.2)?;
+    write_u8(conn, 2)?; //client code
+                        // // if let Some(x) = self.username { //TODO: implement
+                        // //     bytes.append(x.as_bytes());
+                        // // }
+                        // // if let Some() { }
 
     // send bytes
-    if let Err(err) = conn.write_all(bytes.as_mut_slice()) {
-        return Err(IgniteError::from(err));
-    };
+    conn.flush()?;
 
     // read header
     let _ = read_i32(conn)?;
