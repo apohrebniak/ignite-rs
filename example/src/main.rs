@@ -7,7 +7,7 @@ use ignite_rs::protocol::{
 use ignite_rs::{ClientConfig, Ignite, ReadableType, WritableType};
 use ignite_rs_derive::IgniteObj;
 
-use std::io::Read;
+use std::io::{Read, Write};
 
 fn main() {
     let client_config = ClientConfig {
@@ -19,9 +19,17 @@ fn main() {
         println!("ALL caches: {:?}", names)
     }
 
-    let hello: Cache<MyType, MyOtherType> = ignite.get_or_create_cache("test2").unwrap();
+    ignite
+        .get_or_create_cache::<MyType, MyOtherType>("test")
+        .unwrap();
 
-    println!("{:?}", ignite.get_cache_config("test2").unwrap());
+    let mut cache_config = ignite.get_cache_config("test").unwrap();
+    println!("{:?}", cache_config);
+    cache_config.name = String::from("test1");
+
+    let hello: Cache<MyType, MyOtherType> = ignite
+        .get_or_create_cache_with_config(&cache_config)
+        .unwrap();
 
     let key = MyType {
         bar: "AAAAA".into(),

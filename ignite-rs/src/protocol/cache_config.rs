@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::io::Read;
+use std::io::{Read, Write};
 
 use crate::cache::{
     AtomicityMode, CacheMode, IndexType, PartitionLossPolicy, RebalanceMode,
@@ -12,10 +12,13 @@ use crate::error::IgniteError;
 use crate::error::IgniteResult;
 use crate::protocol::cache_config::ConfigPropertyCode::*;
 use crate::protocol::{
-    read_bool, read_i32, read_i64, read_u8, write_bool, write_i16, write_i32, write_i64, write_str,
-    write_u8,
+    read_bool, read_i32, read_i64, read_u8, write_bool, write_i16, write_i32, write_i64,
+    write_string_type_code, write_u8,
 };
 use crate::ReadableType;
+use std::io;
+
+const MIN_CONFIG_PARAMS: i16 = 26;
 
 /// Cache Configuration Properties Codes
 #[derive(PartialOrd, PartialEq)]
@@ -59,168 +62,128 @@ impl Into<i16> for ConfigPropertyCode {
 }
 
 /// https://apacheignite.readme.io/docs/binary-client-protocol-cache-configuration-operations#op_cache_create_with_configuration
-pub(crate) fn write_cache_configuration(config: &CacheConfiguration) -> Vec<u8> {
+pub(crate) fn get_cache_configuration_bytes(config: &CacheConfiguration) -> io::Result<Vec<u8>> {
     // property counter
-    let mut config_param_len = 26i16; // number on non-null options
-    let mut payload = Vec::<u8>::new();
+    let mut config_param_len = MIN_CONFIG_PARAMS; // number on non-null options
+    let mut config_opts = Vec::<u8>::new();
 
-    payload.append(&mut write_cache_config_property(
-        Name,
-        write_str(config.name.as_str()),
-    ));
-    payload.append(&mut write_cache_config_property(
-        CacheAtomicityMode,
-        write_i32(config.atomicity_mode.clone() as i32),
-    ));
-    payload.append(&mut write_cache_config_property(
-        Backups,
-        write_i32(config.num_backup),
-    ));
-    payload.append(&mut write_cache_config_property(
-        CacheMode,
-        write_i32(config.cache_mode.clone() as i32),
-    ));
-    payload.append(&mut write_cache_config_property(
-        CopyOnRead,
-        write_bool(config.copy_on_read),
-    ));
-    payload.append(&mut write_cache_config_property(
-        EagerTtl,
-        write_bool(config.eager_ttl),
-    ));
-    payload.append(&mut write_cache_config_property(
-        StatisticsEnabled,
-        write_bool(config.statistics_enabled),
-    ));
-    payload.append(&mut write_cache_config_property(
-        DefaultLockTimeout,
-        write_i64(config.default_lock_timeout_ms),
-    ));
-    payload.append(&mut write_cache_config_property(
-        MaxConcurrentAsyncOps,
-        write_i32(config.max_concurrent_async_operations),
-    ));
-    payload.append(&mut write_cache_config_property(
-        MaxQueryIterators,
-        write_i32(config.max_query_iterators),
-    ));
-    payload.append(&mut write_cache_config_property(
-        IsOnheapCacheEnabled,
-        write_bool(config.onheap_cache_enabled),
-    ));
-    payload.append(&mut write_cache_config_property(
-        MaxQueryIterators,
-        write_i32(config.max_query_iterators),
-    ));
-    payload.append(&mut write_cache_config_property(
-        PartitionLossPolicy,
-        write_i32(config.partition_loss_policy.clone() as i32),
-    ));
-    payload.append(&mut write_cache_config_property(
-        QueryDetailMetricsSize,
-        write_i32(config.query_detail_metrics_size),
-    ));
-    payload.append(&mut write_cache_config_property(
-        QueryParallelism,
-        write_i32(config.query_parallelism),
-    ));
-    payload.append(&mut write_cache_config_property(
-        ReadFromBackup,
-        write_bool(config.read_from_backup),
-    ));
-    payload.append(&mut write_cache_config_property(
-        RebalanceBatchSize,
-        write_i32(config.rebalance_batch_size),
-    ));
-    payload.append(&mut write_cache_config_property(
-        RebalanceBatchesPrefetchCount,
-        write_i64(config.rebalance_batches_prefetch_count),
-    ));
-    payload.append(&mut write_cache_config_property(
-        RebalanceDelay,
-        write_i64(config.rebalance_delay_ms),
-    ));
-    payload.append(&mut write_cache_config_property(
-        RebalanceMode,
-        write_i32(config.rebalance_mode.clone() as i32),
-    ));
-    payload.append(&mut write_cache_config_property(
-        RebalanceOrder,
-        write_i32(config.rebalance_order),
-    ));
-    payload.append(&mut write_cache_config_property(
-        RebalanceThrottle,
-        write_i64(config.rebalance_throttle_ms),
-    ));
-    payload.append(&mut write_cache_config_property(
-        RebalanceTimeout,
-        write_i64(config.rebalance_timeout_ms),
-    ));
-    payload.append(&mut write_cache_config_property(
-        SqlEscapeAll,
-        write_bool(config.sql_escape_all),
-    ));
-    payload.append(&mut write_cache_config_property(
-        SqlIndexInlineMaxSize,
-        write_i32(config.sql_index_max_size),
-    ));
-    payload.append(&mut write_cache_config_property(
-        WriteSynchronizationMode,
-        write_i32(config.write_synchronization_mode.clone() as i32),
-    ));
+    write_i16(&mut config_opts, Name as i16)?;
+    write_string_type_code(&mut config_opts, config.name.as_str())?;
+
+    write_i16(&mut config_opts, CacheAtomicityMode as i16)?;
+    write_i32(&mut config_opts, config.atomicity_mode.clone() as i32)?;
+
+    write_i16(&mut config_opts, Backups as i16)?;
+    write_i32(&mut config_opts, config.num_backup)?;
+
+    write_i16(&mut config_opts, CacheMode as i16)?;
+    write_i32(&mut config_opts, config.cache_mode.clone() as i32)?;
+
+    write_i16(&mut config_opts, CopyOnRead as i16)?;
+    write_bool(&mut config_opts, config.copy_on_read)?;
+
+    write_i16(&mut config_opts, EagerTtl as i16)?;
+    write_bool(&mut config_opts, config.eager_ttl)?;
+
+    write_i16(&mut config_opts, StatisticsEnabled as i16)?;
+    write_bool(&mut config_opts, config.statistics_enabled)?;
+
+    write_i16(&mut config_opts, DefaultLockTimeout as i16)?;
+    write_i64(&mut config_opts, config.default_lock_timeout_ms)?;
+
+    write_i16(&mut config_opts, MaxConcurrentAsyncOps as i16)?;
+    write_i32(&mut config_opts, config.max_concurrent_async_operations)?;
+
+    write_i16(&mut config_opts, MaxQueryIterators as i16)?;
+    write_i32(&mut config_opts, config.max_query_iterators)?;
+
+    write_i16(&mut config_opts, IsOnheapCacheEnabled as i16)?;
+    write_bool(&mut config_opts, config.onheap_cache_enabled)?;
+
+    write_i16(&mut config_opts, MaxQueryIterators as i16)?;
+    write_i32(&mut config_opts, config.max_query_iterators)?;
+
+    write_i16(&mut config_opts, PartitionLossPolicy as i16)?;
+    write_i32(
+        &mut config_opts,
+        config.partition_loss_policy.clone() as i32,
+    )?;
+
+    write_i16(&mut config_opts, QueryDetailMetricsSize as i16)?;
+    write_i32(&mut config_opts, config.query_detail_metrics_size)?;
+
+    write_i16(&mut config_opts, QueryParallelism as i16)?;
+    write_i32(&mut config_opts, config.query_parallelism)?;
+
+    write_i16(&mut config_opts, ReadFromBackup as i16)?;
+    write_bool(&mut config_opts, config.read_from_backup)?;
+
+    write_i16(&mut config_opts, RebalanceBatchSize as i16)?;
+    write_i32(&mut config_opts, config.rebalance_batch_size)?;
+
+    write_i16(&mut config_opts, RebalanceBatchesPrefetchCount as i16)?;
+    write_i64(&mut config_opts, config.rebalance_batches_prefetch_count)?;
+
+    write_i16(&mut config_opts, RebalanceDelay as i16)?;
+    write_i64(&mut config_opts, config.rebalance_delay_ms)?;
+
+    write_i16(&mut config_opts, RebalanceMode as i16)?;
+    write_i32(&mut config_opts, config.rebalance_mode.clone() as i32)?;
+
+    write_i16(&mut config_opts, RebalanceOrder as i16)?;
+    write_i32(&mut config_opts, config.rebalance_order)?;
+
+    write_i16(&mut config_opts, RebalanceThrottle as i16)?;
+    write_i64(&mut config_opts, config.rebalance_throttle_ms)?;
+
+    write_i16(&mut config_opts, RebalanceTimeout as i16)?;
+    write_i64(&mut config_opts, config.rebalance_timeout_ms)?;
+
+    write_i16(&mut config_opts, SqlEscapeAll as i16)?;
+    write_bool(&mut config_opts, config.sql_escape_all)?;
+
+    write_i16(&mut config_opts, SqlIndexInlineMaxSize as i16)?;
+    write_i32(&mut config_opts, config.sql_index_max_size)?;
+
+    write_i16(&mut config_opts, WriteSynchronizationMode as i16)?;
+    write_i32(
+        &mut config_opts,
+        config.write_synchronization_mode.clone() as i32,
+    )?;
 
     // fields that may be none
     if let Some(ref v) = config.data_region_name {
-        payload.append(&mut write_cache_config_property(
-            DataRegionName,
-            write_str(v.as_str()),
-        ));
+        write_i16(&mut config_opts, DataRegionName as i16)?;
+        write_string_type_code(&mut config_opts, v.as_str())?;
         config_param_len += 1;
     }
     if let Some(ref v) = config.group_name {
-        payload.append(&mut write_cache_config_property(
-            GroupName,
-            write_str(v.as_str()),
-        ));
+        write_i16(&mut config_opts, GroupName as i16)?;
+        write_string_type_code(&mut config_opts, v.as_str())?;
         config_param_len += 1;
     }
     if let Some(ref v) = config.sql_schema {
-        payload.append(&mut write_cache_config_property(
-            SqlSchema,
-            write_str(v.as_str()),
-        ));
+        write_i16(&mut config_opts, SqlSchema as i16)?;
+        write_string_type_code(&mut config_opts, v.as_str())?;
         config_param_len += 1;
     }
     if let Some(ref v) = config.cache_key_configurations {
-        payload.append(&mut write_cache_config_property(
-            CacheKeyConfigurations,
-            write_cache_key_configs(v),
-        ));
+        write_i16(&mut config_opts, CacheKeyConfigurations as i16)?;
+        write_cache_key_configs(&mut config_opts, v)?;
         config_param_len += 1;
     }
     if let Some(ref v) = config.query_entities {
-        payload.append(&mut write_cache_config_property(
-            QueryEntities,
-            write_query_entities(v),
-        ));
+        write_i16(&mut config_opts, QueryEntities as i16)?;
+        write_query_entities(&mut config_opts, v)?;
         config_param_len += 1;
     }
 
     let mut bytes = Vec::<u8>::new();
-    bytes.append(&mut write_i32(payload.len() as i32));
-    bytes.append(&mut write_i16(config_param_len));
-    bytes.append(&mut payload);
+    write_i32(&mut bytes, config_opts.len() as i32)?;
+    write_i16(&mut bytes, config_param_len)?;
+    bytes.append(&mut config_opts);
 
-    bytes
-}
-
-/// Packs cache configs property:
-///  short `property code` + packed `value`
-fn write_cache_config_property(code: ConfigPropertyCode, mut payload: Vec<u8>) -> Vec<u8> {
-    let mut bytes = Vec::<u8>::new();
-    bytes.append(&mut write_i16(code.into()));
-    bytes.append(&mut payload);
-    bytes
+    Ok(bytes)
 }
 
 pub(crate) fn read_cache_configuration(reader: &mut impl Read) -> IgniteResult<CacheConfiguration> {
@@ -273,18 +236,17 @@ fn read_cache_key_configs(reader: &mut impl Read) -> IgniteResult<Vec<CacheKeyCo
     Ok(result)
 }
 
-fn write_cache_key_configs(configs: &[CacheKeyConfiguration]) -> Vec<u8> {
-    // combine configurations
-    let mut payload = Vec::<u8>::new();
-    for conf in configs.iter() {
-        payload.append(&mut write_str(conf.type_name.as_str()));
-        payload.append(&mut write_str(conf.affinity_key_field_name.as_str()));
-    }
+fn write_cache_key_configs(
+    writer: &mut dyn Write,
+    configs: &[CacheKeyConfiguration],
+) -> io::Result<()> {
     // add cound
-    let mut bytes = Vec::<u8>::new();
-    bytes.append(&mut write_i32(configs.len() as i32));
-    bytes.append(&mut payload);
-    bytes
+    write_i32(writer, configs.len() as i32)?;
+    for conf in configs.iter() {
+        write_string_type_code(writer, conf.type_name.as_str())?;
+        write_string_type_code(writer, conf.affinity_key_field_name.as_str())?;
+    }
+    Ok(())
 }
 
 fn read_query_entities(reader: &mut impl Read) -> IgniteResult<Vec<QueryEntity>> {
@@ -314,22 +276,20 @@ fn read_query_entities(reader: &mut impl Read) -> IgniteResult<Vec<QueryEntity>>
     Ok(result)
 }
 
-fn write_query_entities(entities: &[QueryEntity]) -> Vec<u8> {
-    let mut payload: Vec<u8> = Vec::new();
+fn write_query_entities(writer: &mut dyn Write, entities: &[QueryEntity]) -> io::Result<()> {
+    write_i32(writer, entities.len() as i32)?;
     for entity in entities.iter() {
-        payload.append(&mut write_str(entity.key_type.as_str()));
-        payload.append(&mut write_str(entity.value_type.as_str()));
-        payload.append(&mut write_str(entity.table.as_str()));
-        payload.append(&mut write_str(entity.key_field.as_str()));
-        payload.append(&mut write_str(entity.value_field.as_str()));
-        payload.append(&mut write_query_fields(&entity.query_fields));
-        payload.append(&mut write_field_aliases(&entity.field_aliases));
-        payload.append(&mut write_query_indexes(&entity.query_indexes));
+        write_string_type_code(writer, entity.key_type.as_str())?;
+        write_string_type_code(writer, entity.value_type.as_str())?;
+        write_string_type_code(writer, entity.table.as_str())?;
+        write_string_type_code(writer, entity.key_field.as_str())?;
+        write_string_type_code(writer, entity.value_field.as_str())?;
+        write_query_fields(writer, &entity.query_fields)?;
+        write_field_aliases(writer, &entity.field_aliases)?;
+        write_query_indexes(writer, &entity.query_indexes)?;
     }
-    let mut bytes: Vec<u8> = Vec::new();
-    bytes.append(&mut write_i32(entities.len() as i32));
-    bytes.append(&mut payload);
-    bytes
+
+    Ok(())
 }
 
 fn read_query_fields(reader: &mut impl Read) -> IgniteResult<Vec<QueryField>> {
@@ -350,18 +310,15 @@ fn read_query_fields(reader: &mut impl Read) -> IgniteResult<Vec<QueryField>> {
     Ok(result)
 }
 
-fn write_query_fields(fields: &[QueryField]) -> Vec<u8> {
-    let mut payload: Vec<u8> = Vec::new();
+fn write_query_fields(writer: &mut dyn Write, fields: &[QueryField]) -> io::Result<()> {
+    write_i32(writer, fields.len() as i32)?;
     for field in fields.iter() {
-        payload.append(&mut write_str(field.name.as_str()));
-        payload.append(&mut write_str(field.type_name.as_str()));
-        payload.append(&mut write_bool(field.key_field));
-        payload.append(&mut write_bool(field.not_null_constraint));
+        write_string_type_code(writer, field.name.as_str())?;
+        write_string_type_code(writer, field.type_name.as_str())?;
+        write_bool(writer, field.key_field)?;
+        write_bool(writer, field.not_null_constraint)?;
     }
-    let mut bytes: Vec<u8> = Vec::new();
-    bytes.append(&mut write_i32(fields.len() as i32));
-    bytes.append(&mut payload);
-    bytes
+    Ok(())
 }
 
 fn read_query_field_aliases(reader: &mut impl Read) -> IgniteResult<Vec<(String, String)>> {
@@ -375,16 +332,13 @@ fn read_query_field_aliases(reader: &mut impl Read) -> IgniteResult<Vec<(String,
     Ok(result)
 }
 
-fn write_field_aliases(aliases: &[(String, String)]) -> Vec<u8> {
-    let mut payload: Vec<u8> = Vec::new();
+fn write_field_aliases(writer: &mut dyn Write, aliases: &[(String, String)]) -> io::Result<()> {
+    write_i32(writer, aliases.len() as i32)?;
     for alias in aliases.iter() {
-        payload.append(&mut write_str(alias.0.as_str()));
-        payload.append(&mut write_str(alias.1.as_str()));
+        write_string_type_code(writer, alias.0.as_str())?;
+        write_string_type_code(writer, alias.1.as_str())?;
     }
-    let mut bytes: Vec<u8> = Vec::new();
-    bytes.append(&mut write_i32(aliases.len() as i32));
-    bytes.append(&mut payload);
-    bytes
+    Ok(())
 }
 
 fn read_query_indexes(reader: &mut impl Read) -> IgniteResult<Vec<QueryIndex>> {
@@ -405,18 +359,15 @@ fn read_query_indexes(reader: &mut impl Read) -> IgniteResult<Vec<QueryIndex>> {
     Ok(result)
 }
 
-fn write_query_indexes(indexes: &[QueryIndex]) -> Vec<u8> {
-    let mut payload: Vec<u8> = Vec::new();
+fn write_query_indexes(writer: &mut dyn Write, indexes: &[QueryIndex]) -> io::Result<()> {
+    write_i32(writer, indexes.len() as i32)?;
     for index in indexes.iter() {
-        payload.append(&mut write_str(index.index_name.as_str()));
-        payload.append(&mut write_u8(index.index_type.clone() as u8));
-        payload.append(&mut write_i32(index.inline_size));
-        payload.append(&mut write_query_index_fields(&index.fields));
+        write_string_type_code(writer, index.index_name.as_str())?;
+        write_u8(writer, index.index_type.clone() as u8)?;
+        write_i32(writer, index.inline_size)?;
+        write_query_index_fields(writer, &index.fields)?;
     }
-    let mut bytes: Vec<u8> = Vec::new();
-    bytes.append(&mut write_i32(indexes.len() as i32));
-    bytes.append(&mut payload);
-    bytes
+    Ok(())
 }
 
 fn read_query_index_fields(reader: &mut impl Read) -> IgniteResult<Vec<(String, bool)>> {
@@ -430,14 +381,11 @@ fn read_query_index_fields(reader: &mut impl Read) -> IgniteResult<Vec<(String, 
     Ok(result)
 }
 
-fn write_query_index_fields(fields: &[(String, bool)]) -> Vec<u8> {
-    let mut payload: Vec<u8> = Vec::new();
+fn write_query_index_fields(writer: &mut dyn Write, fields: &[(String, bool)]) -> io::Result<()> {
+    write_i32(writer, fields.len() as i32)?;
     for index in fields.iter() {
-        payload.append(&mut write_str(index.0.as_str()));
-        payload.append(&mut write_bool(index.1));
+        write_string_type_code(writer, index.0.as_str())?;
+        write_bool(writer, index.1)?;
     }
-    let mut bytes: Vec<u8> = Vec::new();
-    bytes.append(&mut write_i32(fields.len() as i32));
-    bytes.append(&mut payload);
-    bytes
+    Ok(())
 }

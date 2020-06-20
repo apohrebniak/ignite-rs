@@ -1,46 +1,51 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::*;
 use crate::protocol::{read_u8, TypeCode};
 
 use crate::{Enum, ReadableType, WritableType};
+use std::io;
 
 /// Ignite's 'char' is a UTF-16 code UNIT, which means its size is 2 bytes.
 /// As Rust's 'char' is a Unicode scalar value (a.k.a UTF-32 code unit) and has 4 bytes,
 /// I don't see how the API should be properly implemented. u16 is used for now
 
 macro_rules! write_type {
-    ($t:ty, $code:path, $write_fn:ident) => {
+    ($t:ty, $code:path, $write_fn:ident, $size:expr) => {
         impl WritableType for $t {
-            fn write(&self) -> Vec<u8> {
-                let mut bytes = vec![$code as u8];
-                bytes.append(&mut $write_fn(*self));
-                bytes
+            fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+                write_u8(writer, $code as u8)?;
+                $write_fn(writer, *self)?;
+                Ok(())
+            }
+
+            fn size(&self) -> usize {
+                $size + 1 // size, type code
             }
         }
     };
 }
 
-write_type!(u8, TypeCode::Byte, write_u8);
-write_type!(u16, TypeCode::Char, write_u16);
-write_type!(i16, TypeCode::Short, write_i16);
-write_type!(i32, TypeCode::Int, write_i32);
-write_type!(i64, TypeCode::Long, write_i64);
-write_type!(f32, TypeCode::Float, write_f32);
-write_type!(f64, TypeCode::Double, write_f64);
-write_type!(bool, TypeCode::Bool, write_bool);
-write_type!(Uuid, TypeCode::Uuid, write_uuid);
-write_type!(Enum, TypeCode::Enum, write_enum);
-write_type!(Timestamp, TypeCode::Timestamp, write_timestamp);
-write_type!(Date, TypeCode::Date, write_date);
-write_type!(Time, TypeCode::Time, write_time);
+write_type!(u8, TypeCode::Byte, write_u8, 1);
+write_type!(u16, TypeCode::Char, write_u16, 2);
+write_type!(i16, TypeCode::Short, write_i16, 2);
+write_type!(i32, TypeCode::Int, write_i32, 4);
+write_type!(i64, TypeCode::Long, write_i64, 8);
+write_type!(f32, TypeCode::Float, write_f32, 4);
+write_type!(f64, TypeCode::Double, write_f64, 8);
+write_type!(bool, TypeCode::Bool, write_bool, 1);
+write_type!(Enum, TypeCode::Enum, write_enum, 8);
 
 impl WritableType for String {
-    fn write(&self) -> Vec<u8> {
-        let mut bytes = vec![TypeCode::String as u8];
-        bytes.append(&mut write_string(self));
-        bytes
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_u8(writer, TypeCode::String as u8)?;
+        write_string(writer, self)?;
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        self.len() + 1 + 4 // string itself, type code, len
     }
 }
 
@@ -70,37 +75,35 @@ read_type!(f32, read_f32);
 read_type!(f64, read_f64);
 read_type!(bool, read_bool);
 read_type!(String, read_string);
-read_type!(Uuid, read_uuid);
 read_type!(Enum, read_enum);
-read_type!(Timestamp, read_timestamp);
-read_type!(Date, read_date);
-read_type!(Time, read_time);
 
 macro_rules! write_primitive_arr {
-    ($t:ty, $code:path, $write_fn:ident) => {
+    ($t:ty, $code:path, $write_fn:ident, $size:expr) => {
         impl WritableType for Vec<$t> {
-            fn write(&self) -> Vec<u8> {
-                let mut payload: Vec<u8> =
-                    Vec::with_capacity(self.len() * std::mem::size_of::<$t>());
-                payload.push($code as u8);
-                payload.append(&mut write_i32(self.len() as i32)); // length of array
+            fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+                write_u8(writer, $code as u8)?;
+                write_i32(writer, self.len() as i32)?; // length of array
                 for el in self {
-                    payload.append(&mut $write_fn(*el));
+                    $write_fn(writer, *el)?;
                 }
-                payload
+                Ok(())
+            }
+
+            fn size(&self) -> usize {
+                $size * self.len() + 4 + 1 // size * len, len, type code
             }
         }
     };
 }
 
-write_primitive_arr!(u8, TypeCode::ArrByte, write_u8);
-write_primitive_arr!(i16, TypeCode::ArrShort, write_i16);
-write_primitive_arr!(i32, TypeCode::ArrInt, write_i32);
-write_primitive_arr!(i64, TypeCode::ArrLong, write_i64);
-write_primitive_arr!(f32, TypeCode::ArrFloat, write_f32);
-write_primitive_arr!(f64, TypeCode::ArrDouble, write_f64);
-write_primitive_arr!(bool, TypeCode::ArrBool, write_bool);
-write_primitive_arr!(u16, TypeCode::ArrChar, write_u16);
+write_primitive_arr!(u8, TypeCode::ArrByte, write_u8, 1);
+write_primitive_arr!(i16, TypeCode::ArrShort, write_i16, 2);
+write_primitive_arr!(i32, TypeCode::ArrInt, write_i32, 4);
+write_primitive_arr!(i64, TypeCode::ArrLong, write_i64, 8);
+write_primitive_arr!(f32, TypeCode::ArrFloat, write_f32, 4);
+write_primitive_arr!(f64, TypeCode::ArrDouble, write_f64, 8);
+write_primitive_arr!(bool, TypeCode::ArrBool, write_bool, 1);
+write_primitive_arr!(u16, TypeCode::ArrChar, write_u16, 2);
 
 macro_rules! read_primitive_arr {
     ($t:ty, $read_fn:ident) => {
@@ -130,18 +133,28 @@ read_primitive_arr!(bool, read_bool);
 
 // pack all vectors as object array
 impl<T: WritableType + ReadableType> WritableType for Vec<Option<T>> {
-    fn write(&self) -> Vec<u8> {
-        let mut data: Vec<u8> = Vec::new();
-        data.push(TypeCode::ArrObj as u8);
-        data.append(&mut write_i32(-1)); // typeid. always -1
-        data.append(&mut write_i32(self.len() as i32)); // length of array
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_u8(writer, TypeCode::ArrObj as u8)?;
+        write_i32(writer, -1)?; // typeid. always -1
+        write_i32(writer, self.len() as i32)?; // length of array
         for item in self {
             match item {
-                None => data.push(TypeCode::Null as u8),
-                Some(value) => data.append(&mut value.write()),
+                None => write_u8(writer, TypeCode::Null as u8)?,
+                Some(value) => value.write(writer)?,
             }
         }
-        data
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        let mut items_size: usize = 0;
+        for item in self {
+            match item {
+                None => items_size += 1, // type code
+                Some(value) => items_size += value.size(),
+            }
+        }
+        items_size + 1 + 4 + 4 // items, type code, typeId, len
     }
 }
 
@@ -175,10 +188,17 @@ impl<T: WritableType + ReadableType> ReadableType for Vec<Option<T>> {
 }
 
 impl<T: WritableType> WritableType for Option<T> {
-    fn write(&self) -> Vec<u8> {
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
         match self {
-            None => vec![TypeCode::Null as u8],
-            Some(inner) => inner.write(),
+            None => write_u8(writer, TypeCode::Null as u8),
+            Some(inner) => inner.write(writer),
+        }
+    }
+
+    fn size(&self) -> usize {
+        match self {
+            None => 1, // type code
+            Some(inner) => inner.size(),
         }
     }
 }

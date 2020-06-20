@@ -3,10 +3,12 @@ use crate::error::IgniteResult;
 use crate::protocol::{read_bool, read_i32, read_i64, write_i32, write_u8};
 use crate::{ReadableReq, ReadableType, WritableType, WriteableReq};
 
-use std::io::Read;
+use std::io;
+use std::io::{Read, Write};
 
 // https://apacheignite.readme.io/docs/binary-client-protocol-key-value-operations#op_cache_get
 const MAGIC_BYTE: u8 = 0;
+const CACHE_ID_MAGIC_BYTE_SIZE: usize = 5;
 
 pub(crate) enum CacheReq<'a, K: WritableType, V: WritableType> {
     Get(i32, &'a K),
@@ -33,31 +35,29 @@ pub(crate) enum CacheReq<'a, K: WritableType, V: WritableType> {
 }
 
 impl<'a, K: WritableType, V: WritableType> WriteableReq for CacheReq<'a, K, V> {
-    fn write(self) -> Vec<u8> {
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
         match self {
             CacheReq::Get(id, key)
             | CacheReq::ContainsKey(id, key)
             | CacheReq::GetAndRemove(id, key)
             | CacheReq::ClearKey(id, key)
             | CacheReq::RemoveKey(id, key) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                bytes.append(&mut write_i32(id));
-                bytes.append(&mut write_u8(MAGIC_BYTE));
-                bytes.append(&mut key.write());
-                bytes
+                write_i32(writer, *id)?;
+                write_u8(writer, MAGIC_BYTE)?;
+                key.write(writer)?;
+                Ok(())
             }
             CacheReq::GetAll(id, keys)
             | CacheReq::ContainsKeys(id, keys)
             | CacheReq::ClearKeys(id, keys)
             | CacheReq::RemoveKeys(id, keys) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                bytes.append(&mut write_i32(id));
-                bytes.append(&mut write_u8(MAGIC_BYTE));
-                bytes.append(&mut write_i32(keys.len() as i32));
-                for k in keys {
-                    bytes.append(&mut k.write());
+                write_i32(writer, *id)?;
+                write_u8(writer, MAGIC_BYTE)?;
+                write_i32(writer, keys.len() as i32)?;
+                for k in *keys {
+                    k.write(writer)?;
                 }
-                bytes
+                Ok(())
             }
             CacheReq::Put(id, key, value)
             | CacheReq::GetAndPut(id, key, value)
@@ -66,48 +66,94 @@ impl<'a, K: WritableType, V: WritableType> WriteableReq for CacheReq<'a, K, V> {
             | CacheReq::GetAndPutIfAbsent(id, key, value)
             | CacheReq::Replace(id, key, value)
             | CacheReq::RemoveIfEquals(id, key, value) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                bytes.append(&mut write_i32(id));
-                bytes.append(&mut write_u8(MAGIC_BYTE));
-                bytes.append(&mut key.write());
-                bytes.append(&mut value.write());
-                bytes
+                write_i32(writer, *id)?;
+                write_u8(writer, MAGIC_BYTE)?;
+                key.write(writer)?;
+                value.write(writer)?;
+                Ok(())
             }
             CacheReq::PutAll(id, pairs) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                bytes.append(&mut write_i32(id));
-                bytes.append(&mut write_u8(MAGIC_BYTE));
-                bytes.append(&mut write_i32(pairs.len() as i32));
-                for pair in pairs {
-                    bytes.append(&mut pair.0.write());
-                    bytes.append(&mut pair.1.write());
+                write_i32(writer, *id)?;
+                write_u8(writer, MAGIC_BYTE)?;
+                write_i32(writer, pairs.len() as i32)?;
+                for pair in *pairs {
+                    pair.0.write(writer)?;
+                    pair.1.write(writer)?;
                 }
-                bytes
+                Ok(())
             }
             CacheReq::ReplaceIfEquals(id, key, old, new) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                bytes.append(&mut write_i32(id));
-                bytes.append(&mut write_u8(MAGIC_BYTE));
-                bytes.append(&mut key.write());
-                bytes.append(&mut old.write());
-                bytes.append(&mut new.write());
-                bytes
+                write_i32(writer, *id)?;
+                write_u8(writer, MAGIC_BYTE)?;
+                key.write(writer)?;
+                old.write(writer)?;
+                new.write(writer)?;
+                Ok(())
             }
             CacheReq::Clear(id) | CacheReq::RemoveAll(id) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                bytes.append(&mut write_i32(id));
-                bytes.append(&mut write_u8(MAGIC_BYTE));
-                bytes
+                write_i32(writer, *id)?;
+                write_u8(writer, MAGIC_BYTE)?;
+                Ok(())
             }
             CacheReq::GetSize(id, modes) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                bytes.append(&mut write_i32(id));
-                bytes.append(&mut write_u8(MAGIC_BYTE));
-                bytes.append(&mut write_i32(modes.len() as i32));
+                write_i32(writer, *id)?;
+                write_u8(writer, MAGIC_BYTE)?;
+                write_i32(writer, modes.len() as i32)?;
                 for mode in modes {
-                    bytes.append(&mut write_u8(mode.into()));
+                    write_u8(writer, mode.clone() as u8)?;
                 }
-                bytes
+                Ok(())
+            }
+        }
+    }
+
+    fn size(&self) -> usize {
+        match self {
+            CacheReq::Get(_, key)
+            | CacheReq::ContainsKey(_, key)
+            | CacheReq::GetAndRemove(_, key)
+            | CacheReq::ClearKey(_, key)
+            | CacheReq::RemoveKey(_, key) => CACHE_ID_MAGIC_BYTE_SIZE + key.size(),
+            CacheReq::GetAll(_, keys)
+            | CacheReq::ContainsKeys(_, keys)
+            | CacheReq::ClearKeys(_, keys)
+            | CacheReq::RemoveKeys(_, keys) => {
+                let mut size = CACHE_ID_MAGIC_BYTE_SIZE;
+                size += 4; // len
+                for k in *keys {
+                    size += k.size();
+                }
+                size
+            }
+            CacheReq::Put(_, key, value)
+            | CacheReq::GetAndPut(_, key, value)
+            | CacheReq::GetAndReplace(_, key, value)
+            | CacheReq::PutIfAbsent(_, key, value)
+            | CacheReq::GetAndPutIfAbsent(_, key, value)
+            | CacheReq::Replace(_, key, value)
+            | CacheReq::RemoveIfEquals(_, key, value) => {
+                CACHE_ID_MAGIC_BYTE_SIZE + key.size() + value.size()
+            }
+            CacheReq::PutAll(_, pairs) => {
+                let mut size = CACHE_ID_MAGIC_BYTE_SIZE;
+                size += 4; //len
+                for pair in *pairs {
+                    size += pair.0.size();
+                    size += pair.1.size();
+                }
+                size
+            }
+            CacheReq::ReplaceIfEquals(_, key, old, new) => {
+                CACHE_ID_MAGIC_BYTE_SIZE + key.size() + old.size() + new.size()
+            }
+            CacheReq::Clear(_) | CacheReq::RemoveAll(_) => CACHE_ID_MAGIC_BYTE_SIZE,
+            CacheReq::GetSize(_, modes) => {
+                let mut size = CACHE_ID_MAGIC_BYTE_SIZE;
+                size += 4; //len
+                for _ in modes {
+                    size += 1;
+                }
+                size
             }
         }
     }
