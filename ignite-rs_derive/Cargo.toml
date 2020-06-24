@@ -9,7 +9,7 @@ homepage = "https://github.com/apohrebniak/ignite-rs"
 documentation = "https://github.com/apohrebniak/ignite-rs"
 repository = "https://github.com/apohrebniak/ignite-rs"
 readme = "../README.md"
-keywords = ["ignite", "apache ignite", "client", "ignite client"]
+keywords = ["ignite","client"]
 categories = ["database"]
 
 [lib]
