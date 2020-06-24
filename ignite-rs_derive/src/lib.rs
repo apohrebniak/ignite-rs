@@ -27,7 +27,7 @@ pub fn derive_ignite_obj(item: proc_macro::TokenStream) -> proc_macro::TokenStre
     proc_macro::TokenStream::from(output)
 }
 
-/// Implements WritableType trait
+/// Implements ignite_rs::WritableType trait
 fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     let type_id: i32 = get_type_id(type_name);
     let schema_id = get_schema_id(fields);
@@ -49,8 +49,8 @@ fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     });
 
     quote! {
-        impl WritableType for #type_name {
-            fn write(&self, writer: &mut dyn Write) -> std::io::Result<()> {
+        impl ignite_rs::WritableType for #type_name {
+            fn write(&self, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
                 ignite_rs::protocol::write_u8(writer, ignite_rs::protocol::TypeCode::ComplexObj as u8)?;
                 ignite_rs::protocol::write_u8(writer,1)?; //version. always 1
                 ignite_rs::protocol::write_u16(writer, ignite_rs::protocol::FLAG_USER_TYPE|ignite_rs::protocol::FLAG_HAS_SCHEMA)?; //flags
@@ -64,9 +64,9 @@ fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
                 #( #fields_schema)*
 
                 ignite_rs::protocol::write_i32(writer, ignite_rs::utils::bytes_to_java_hashcode(fields.as_slice()))?; //hash_code. used for keys
-                ignite_rs::protocol::write_i32(writer, COMPLEX_OBJ_HEADER_LEN + fields.len() as i32 + schema.len() as i32)?; //length. including header
+                ignite_rs::protocol::write_i32(writer, ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN + fields.len() as i32 + schema.len() as i32)?; //length. including header
                 ignite_rs::protocol::write_i32(writer, #schema_id)?; //schema_id
-                ignite_rs::protocol::write_i32(writer, COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)?; //schema offset
+                ignite_rs::protocol::write_i32(writer, ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)?; //schema offset
                 writer.write_all(&fields)?; //object fields
                 writer.write_all(&schema)?; //schema
                 // no raw_data_offset written
@@ -74,7 +74,7 @@ fn impl_write_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
             }
 
             fn size(&self) -> usize {
-                let mut size = COMPLEX_OBJ_HEADER_LEN as usize;
+                let mut size = ignite_rs::protocol::COMPLEX_OBJ_HEADER_LEN as usize;
                 //write fields and schema sized
                 #( #fields_schema_size)*
                 size
@@ -104,41 +104,41 @@ fn impl_read_type(type_name: &Ident, fields: &FieldsNamed) -> TokenStream {
     });
 
     quote! {
-            impl ReadableType for #type_name {
-            fn read_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>> {
+            impl ignite_rs::ReadableType for #type_name {
+            fn read_unwrapped(type_code: ignite_rs::protocol::TypeCode, reader: &mut impl std::io::Read) -> ignite_rs::error::IgniteResult<Option<Self>> {
                 let value: Option<Self> = match type_code {
-                    TypeCode::Null => None,
+                    ignite_rs::protocol::TypeCode::Null => None,
                     _ => {
-                        read_u8(reader)?; // read version. skip
+                        ignite_rs::protocol::read_u8(reader)?; // read version. skip
 
-                        let flags = read_u16(reader)?; // read and parse flags
-                        if (flags & FLAG_HAS_SCHEMA) == 0 {
-                            return Err(IgniteError::from("Serialized object schema expected!"));
+                        let flags = ignite_rs::protocol::read_u16(reader)?; // read and parse flags
+                        if (flags & ignite_rs::protocol::FLAG_HAS_SCHEMA) == 0 {
+                            return Err(ignite_rs::error::IgniteError::from("Serialized object schema expected!"));
                         }
-                        if (flags & FLAG_COMPACT_FOOTER) != 0 {
-                            return Err(IgniteError::from("Compact footer is not supported!"));
+                        if (flags & ignite_rs::protocol::FLAG_COMPACT_FOOTER) != 0 {
+                            return Err(ignite_rs::error::IgniteError::from("Compact footer is not supported!"));
                         }
-                        if (flags & FLAG_OFFSET_ONE_BYTE) != 0 || (flags & FLAG_OFFSET_TWO_BYTES) != 0 {
-                            return Err(IgniteError::from("Schema offset=4 is expected!"));
+                        if (flags & ignite_rs::protocol::FLAG_OFFSET_ONE_BYTE) != 0 || (flags & ignite_rs::protocol::FLAG_OFFSET_TWO_BYTES) != 0 {
+                            return Err(ignite_rs::error::IgniteError::from("Schema offset=4 is expected!"));
                         }
 
-                        let type_id = read_i32(reader)?; // read and check type_id
+                        let type_id = ignite_rs::protocol::read_i32(reader)?; // read and check type_id
                         if type_id != #exp_type_id {
-                            return Err(IgniteError::from(
+                            return Err(ignite_rs::error::IgniteError::from(
                                 format!("Unknown type id! {} expected!", #exp_type_id).as_str(),
                             ));
                         }
 
-                        read_i32(reader)?; // read hashcode
-                        read_i32(reader)?; // read length (with header)
-                        read_i32(reader)?; // read schema id
-                        read_i32(reader)?; // read schema offset
+                        ignite_rs::protocol::read_i32(reader)?; // read hashcode
+                        ignite_rs::protocol::read_i32(reader)?; // read length (with header)
+                        ignite_rs::protocol::read_i32(reader)?; // read schema id
+                        ignite_rs::protocol::read_i32(reader)?; // read schema offset
 
                         #( #fields_read)*
 
                         // read schema
                         for _ in 0..#fields_count {
-                            read_i64(reader)?; // read one field (id and offset)
+                            ignite_rs::protocol::read_i64(reader)?; // read one field (id and offset)
                         }
 
                         Some(

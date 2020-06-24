@@ -1,17 +1,10 @@
 use ignite_rs::cache::Cache;
-use ignite_rs::error::{IgniteError, IgniteResult};
-use ignite_rs::protocol::{
-    read_i32, read_i64, read_u16, read_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
-    FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES,
-};
-use ignite_rs::{ClientConfig, Ignite, ReadableType, WritableType};
+use ignite_rs::{ClientConfig, Ignite};
 use ignite_rs_derive::IgniteObj;
-
-use std::io::{Read, Write};
 
 fn main() {
     // Create a client configuration
-    let mut client_config = ClientConfig::new("localhost:10800");
+    let client_config = ClientConfig::new("localhost:10800");
 
     // Optionally define user, password, TCP configuration
     // client_config.username = Some("ignite".into());
