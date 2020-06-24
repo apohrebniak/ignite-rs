@@ -39,12 +39,15 @@ pub(crate) trait WriteableReq {
 pub(crate) trait ReadableReq: Sized {
     fn read(reader: &mut impl Read) -> IgniteResult<Self>;
 }
-
+/// Indicates that a type could be used as cache key/value.
+/// Used alongside ReadableType
 pub trait WritableType {
     fn write(&self, writer: &mut dyn Write) -> io::Result<()>;
     fn size(&self) -> usize;
 }
 
+/// Indicates that a type could be used as cache key/value.
+/// Used alongside WritableType
 pub trait ReadableType: Sized {
     fn read_unwrapped(type_code: TypeCode, reader: &mut impl Read) -> IgniteResult<Option<Self>>;
     fn read(reader: &mut impl Read) -> IgniteResult<Option<Self>> {
@@ -52,9 +55,21 @@ pub trait ReadableType: Sized {
     }
 }
 
+/// Combines the WritableType and ReadableType crates.
+/// Intended to be used in the #[derive(IgniteObj)] attribute to automatically generate
+/// serialization/deserialization for the user-defined structs
+///
+/// use ignite_rs_derive::IgniteObj;
+/// #[derive(IgniteObj)]
+/// struct MyType {
+///     bar: String,
+///     foo: i32,
+/// }
 pub trait IgniteObj: WritableType + ReadableType {}
 
-/// Ignite Client configuration
+/// Ignite Client configuration.
+/// Allows the configuration of user's credentials, tcp configuration
+/// and SSL/TLS, if "ssl" feature is enabled
 #[derive(Clone)]
 pub struct ClientConfig {
     pub addr: String,
@@ -111,11 +126,6 @@ impl ClientConfig {
 pub fn new_client(conf: ClientConfig) -> IgniteResult<Client> {
     Client::new(conf)
 }
-
-// /// Create new Ignite client with pooled connection
-// pub fn new_pooled_client(conf: ClientConfig) -> IgniteResult<Client> {
-//     unimplemented!()
-// }
 
 pub trait Ignite {
     /// Returns names of caches currently available in cluster
@@ -175,7 +185,6 @@ impl Client {
     }
 }
 
-//TODO: consider move generic logic when pooled client developments starts
 impl Ignite for Client {
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>> {
         let resp: CacheGetNamesResp = self

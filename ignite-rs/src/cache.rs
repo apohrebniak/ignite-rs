@@ -268,7 +268,9 @@ pub struct QueryIndex {
     pub(crate) fields: Vec<(String, bool)>,
 }
 
-/// Ignite key-value cache
+/// Ignite key-value cache. This cache is strongly typed and reading/writing some other
+/// types leads to errors.
+/// All caches created from the single IgniteClient shares the common TCP connection
 pub struct Cache<K: WritableType + ReadableType, V: WritableType + ReadableType> {
     id: i32,
     pub _name: String,
