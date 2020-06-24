@@ -32,11 +32,6 @@ pub enum TypeCode {
     Bool = 8,
     // standard objects
     String = 9,
-    Uuid = 10,
-    Timestamp = 33,
-    Date = 11,
-    Time = 36,
-    Decimal = 30,
     Enum = 28,
     // arrays of primitives
     ArrByte = 12,
@@ -50,7 +45,6 @@ pub enum TypeCode {
     // object collections
     ArrObj = 23,
     Collection = 24,
-    ArrEnum = 29,
     ComplexObj = 103,
     Null = 101,
     WrappedData = 27,
@@ -70,11 +64,6 @@ impl TryFrom<u8> for TypeCode {
             7 => Ok(TypeCode::Char),
             8 => Ok(TypeCode::Bool),
             9 => Ok(TypeCode::String),
-            10 => Ok(TypeCode::Uuid),
-            33 => Ok(TypeCode::Timestamp),
-            11 => Ok(TypeCode::Date),
-            36 => Ok(TypeCode::Time),
-            30 => Ok(TypeCode::Decimal),
             28 => Ok(TypeCode::Enum),
             12 => Ok(TypeCode::ArrByte),
             13 => Ok(TypeCode::ArrShort),
@@ -87,7 +76,6 @@ impl TryFrom<u8> for TypeCode {
             23 => Ok(TypeCode::ArrObj),
             24 => Ok(TypeCode::Collection),
             27 => Ok(TypeCode::WrappedData),
-            29 => Ok(TypeCode::ArrEnum),
             103 => Ok(TypeCode::ComplexObj),
             101 => Ok(TypeCode::Null),
             _ => Err(IgniteError::from(

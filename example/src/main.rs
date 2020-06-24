@@ -10,26 +10,24 @@ use ignite_rs_derive::IgniteObj;
 use std::io::{Read, Write};
 
 fn main() {
+    // Create a client configuration
     let mut client_config = ClientConfig::new("localhost:10800");
+
+    // Optionally define user, password, TCP configuration
     // client_config.username = Some("ignite".into());
     // client_config.password = Some("ignite".into());
 
+    // Create an actual client. The protocol handshake is done here
     let mut ignite = ignite_rs::new_client(client_config).unwrap();
 
+    // Get a list of present caches
     if let Ok(names) = ignite.get_cache_names() {
         println!("ALL caches: {:?}", names)
     }
 
-    ignite
+    // Create a typed cache named "test"
+    let hello_cache: Cache<MyType, MyOtherType> = ignite
         .get_or_create_cache::<MyType, MyOtherType>("test")
-        .unwrap();
-
-    let mut cache_config = ignite.get_cache_config("test").unwrap();
-    println!("{:?}", cache_config);
-    cache_config.name = String::from("test1");
-
-    let hello: Cache<MyType, MyOtherType> = ignite
-        .get_or_create_cache_with_config(&cache_config)
         .unwrap();
 
     let key = MyType {
@@ -41,12 +39,14 @@ fn main() {
         arr: vec![-23423423i64, -2342343242315i64],
     };
 
-    hello.put(&key, &val).unwrap();
+    // Put value
+    hello_cache.put(&key, &val).unwrap();
 
-    println!("{:?}", hello.get(&key).unwrap());
-    println!("{:?}", hello.get(&key).unwrap());
+    // Retrieve value
+    println!("{:?}", hello_cache.get(&key).unwrap());
 }
 
+// Define your structs, that could be used as keys or values
 #[derive(IgniteObj, Clone, Debug)]
 struct MyType {
     bar: String,
