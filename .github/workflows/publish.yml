@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "*"
-    branches:
-      - master
 
 jobs:
   publish:
@@ -24,8 +22,8 @@ jobs:
 
       - name: Publish ignite-rs_derive
         working-directory: ./ignite-rs_derive
-        run: cargo publish --dry-run --verbose --all-features --token ${{ secrets.DEPLOY }}
+        run: cargo publish --verbose --all-features --token ${{ secrets.DEPLOY }}
       
       - name: Publish ignite-rs
         working-directory: ./ignite-rs
-        run: cargo publish --dry-run --verbose --all-features --token ${{ secrets.DEPLOY }}
+        run: cargo publish --verbose --all-features --token ${{ secrets.DEPLOY }}
