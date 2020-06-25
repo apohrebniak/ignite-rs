@@ -4,7 +4,7 @@ Apache Ignite thin client
 ## Usage
 ```
 [dependencies]
-ignite-rs = "0.1.0"
+ignite-rs = "0.1.1"
 ```
 
 ```
@@ -95,10 +95,12 @@ You could use your own types as keys/values. All you need to do is to add an `#[
 
 ```
 [dependencies]
-ignite-rs_derive = "0.1.0"
+ignite-rs_derive = "0.1.1"
 ```
 
 ```
+use ignite_rs_derive::IgniteObj;
+
 #[derive(IgniteObj)]
 struct MyOtherType {
     list: Vec<Option<FooBar>>,
@@ -113,7 +115,7 @@ Note, that all fields in your struct should implement `WriteableType` and `Reada
 Encrypted connections are supported via [rustls](https://github.com/ctz/rustls). 
 ```
 [dependencies.ignite-rs]
-version = "0.1.0"
+version = "0.1.1"
 features = ["ssl"]
 ```
 ```
