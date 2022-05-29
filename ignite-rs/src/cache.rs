@@ -241,23 +241,25 @@ pub struct CacheKeyConfiguration {
 
 #[derive(Clone, Debug)]
 pub struct QueryEntity {
-    pub(crate) key_type: String,
-    pub(crate) value_type: String,
-    pub(crate) table: String,
-    pub(crate) key_field: String,
-    pub(crate) value_field: String,
-    pub(crate) query_fields: Vec<QueryField>,
-    pub(crate) field_aliases: Vec<(String, String)>,
-    pub(crate) query_indexes: Vec<QueryIndex>,
-    pub(crate) default_value: Option<String>, //TODO: find the issue where this field is listed
+    pub key_type: String,
+    pub value_type: String,
+    pub table: String,
+    pub key_field: String,
+    pub value_field: String,
+    pub query_fields: Vec<QueryField>,
+    pub field_aliases: Vec<(String, String)>,
+    pub query_indexes: Vec<QueryIndex>,
+    pub default_value: Option<String>, //TODO: find the issue where this field is listed
 }
 
 #[derive(Clone, Debug)]
 pub struct QueryField {
-    pub(crate) name: String,
-    pub(crate) type_name: String,
-    pub(crate) key_field: bool,
-    pub(crate) not_null_constraint: bool,
+    pub name: String,
+    pub type_name: String,
+    pub key_field: bool,
+    pub not_null_constraint: bool,
+    pub precision: i32,
+    pub scale: i32,
 }
 
 #[derive(Clone, Debug)]

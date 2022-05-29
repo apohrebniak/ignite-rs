@@ -11,10 +11,7 @@ use crate::cache::{
 use crate::error::IgniteError;
 use crate::error::IgniteResult;
 use crate::protocol::cache_config::ConfigPropertyCode::*;
-use crate::protocol::{
-    read_bool, read_i32, read_i64, read_u8, write_bool, write_i16, write_i32, write_i64,
-    write_string_type_code, write_u8,
-};
+use crate::protocol::{read_bool, read_i32, read_i64, read_object, read_u8, write_bool, write_i16, write_i32, write_i64, write_string_type_code, write_u8};
 use crate::ReadableType;
 use std::io;
 
@@ -257,7 +254,7 @@ fn read_query_entities(reader: &mut impl Read) -> IgniteResult<Vec<QueryEntity>>
         let value_type = String::read(reader)?.unwrap();
         let table = String::read(reader)?.unwrap();
         let key_field = String::read(reader)?.unwrap();
-        let value_field = String::read(reader)?.unwrap();
+        let value_field = String::read(reader)?.unwrap_or("".to_string());
         let query_fields = read_query_fields(reader)?;
         let field_aliases = read_query_field_aliases(reader)?;
         let query_indexes = read_query_indexes(reader)?;
@@ -296,15 +293,20 @@ fn read_query_fields(reader: &mut impl Read) -> IgniteResult<Vec<QueryField>> {
     let count = read_i32(reader)?;
     let mut result = Vec::<QueryField>::new();
     for _ in 0..count {
-        let name = String::read(reader)?.unwrap();
-        let type_name = String::read(reader)?.unwrap();
+        let name = String::read(reader)?.unwrap_or("".to_string());
+        let type_name = String::read(reader)?.unwrap_or("".to_string());
         let key_field = read_bool(reader)?;
         let not_null_constraint = read_bool(reader)?;
+        let _default_val = read_object(reader)?;
+        let precision = read_i32(reader)?;
+        let scale = read_i32(reader)?;
         result.push(QueryField {
             name,
             type_name,
             key_field,
             not_null_constraint,
+            precision,
+            scale,
         })
     }
     Ok(result)
