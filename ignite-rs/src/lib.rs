@@ -169,6 +169,15 @@ pub struct Client {
     conn: Arc<Connection>,
 }
 
+impl Clone for Client {
+    fn clone(&self) -> Self {
+        Self {
+            _conf: self._conf.clone(),
+            conn: self.conn.clone(),
+        }
+    }
+}
+
 impl Client {
     fn new(conf: ClientConfig) -> IgniteResult<Client> {
         // make connection
