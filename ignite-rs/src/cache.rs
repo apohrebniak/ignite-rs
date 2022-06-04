@@ -1,8 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::api::key_value::{
-    CacheBoolResp, CacheDataObjectResp, CachePairsResp, CacheReq, CacheSizeResp,
-};
+use crate::api::key_value::{CacheBoolResp, CacheDataObjectResp, CachePairsResp, CacheReq, CacheSizeResp, QueryScanResp};
 use crate::cache::AtomicityMode::{Atomic, Transactional};
 use crate::cache::CacheMode::{Local, Partitioned, Replicated};
 use crate::cache::IndexType::{Fulltext, GeoSpatial, Sorted};
@@ -290,6 +288,13 @@ impl<K: WritableType + ReadableType, V: WritableType + ReadableType> Cache<K, V>
             k_phantom: PhantomData,
             v_phantom: PhantomData,
         }
+    }
+
+    /// https://ignite.apache.org/docs/latest/binary-client-protocol/sql-and-scan-queries#op_query_scan
+    pub fn query_scan(&self, page_size: i32) -> IgniteResult<Vec<(Option<K>, Option<V>)>> {
+        self.conn
+            .send_and_read(OpCode::QueryScan, CacheReq::QueryScan::<K, V>(self.id, page_size))
+            .map(|resp: QueryScanResp<K, V>| resp.val)
     }
 
     pub fn get(&self, key: &K) -> IgniteResult<Option<V>> {

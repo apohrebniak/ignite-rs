@@ -318,3 +318,8 @@ pub fn write_enum(writer: &mut dyn Write, val: Enum) -> io::Result<()> {
     write_i32(writer, val.ordinal)?;
     Ok(())
 }
+
+pub fn write_null(writer: &mut dyn Write) -> io::Result<()> {
+    write_u8(writer, TypeCode::Null as u8)?;
+    Ok(())
+}
