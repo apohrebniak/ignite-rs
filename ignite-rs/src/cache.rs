@@ -273,17 +273,17 @@ pub struct QueryIndex {
 /// All caches created from the single IgniteClient shares the common TCP connection
 pub struct Cache<K: WritableType + ReadableType, V: WritableType + ReadableType> {
     id: i32,
-    pub _name: String,
+    pub cfg: CacheConfiguration,
     conn: Arc<Connection>,
     k_phantom: PhantomData<K>,
     v_phantom: PhantomData<V>,
 }
 
 impl<K: WritableType + ReadableType, V: WritableType + ReadableType> Cache<K, V> {
-    pub(crate) fn new(id: i32, name: String, conn: Arc<Connection>) -> Cache<K, V> {
+    pub(crate) fn new(id: i32, cfg: CacheConfiguration, conn: Arc<Connection>) -> Cache<K, V> {
         Cache {
             id,
-            _name: name,
+            cfg,
             conn,
             k_phantom: PhantomData,
             v_phantom: PhantomData,

@@ -206,18 +206,16 @@ impl Ignite for Client {
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send(
+        self.conn.send(
                 OpCode::CacheCreateWithName,
                 CacheCreateWithNameReq::from(name),
-            )
-            .map(|_| {
-                Cache::new(
-                    string_to_java_hashcode(name),
-                    name.to_owned(),
-                    self.conn.clone(),
-                )
-            })
+            )?;
+        let cfg = self.get_cache_config(name)?;
+        Ok(Cache::new(
+            string_to_java_hashcode(name),
+            cfg,
+            self.conn.clone(),
+        ))
     }
 
     fn get_or_create_cache<K: WritableType + ReadableType, V: WritableType + ReadableType>(
@@ -228,14 +226,13 @@ impl Ignite for Client {
             .send(
                 OpCode::CacheGetOrCreateWithName,
                 CacheGetOrCreateWithNameReq::from(name),
-            )
-            .map(|_| {
-                Cache::new(
-                    string_to_java_hashcode(name),
-                    name.to_owned(),
-                    self.conn.clone(),
-                )
-            })
+            )?;
+        let cfg = self.get_cache_config(name)?;
+        Ok(Cache::new(
+            string_to_java_hashcode(name),
+            cfg,
+            self.conn.clone(),
+        ))
     }
 
     fn create_cache_with_config<K: WritableType + ReadableType, V: WritableType + ReadableType>(
@@ -246,14 +243,12 @@ impl Ignite for Client {
             .send(
                 OpCode::CacheCreateWithConfiguration,
                 CacheCreateWithConfigReq { config },
-            )
-            .map(|_| {
-                Cache::new(
-                    string_to_java_hashcode(config.name.as_str()),
-                    config.name.clone(),
-                    self.conn.clone(),
-                )
-            })
+            )?;
+        Ok(Cache::new(
+            string_to_java_hashcode(config.name.as_str()),
+            config.clone(),
+            self.conn.clone(),
+        ))
     }
 
     fn get_or_create_cache_with_config<
@@ -267,14 +262,12 @@ impl Ignite for Client {
             .send(
                 OpCode::CacheGetOrCreateWithConfiguration,
                 CacheGetOrCreateWithConfigReq { config },
-            )
-            .map(|_| {
-                Cache::new(
-                    string_to_java_hashcode(config.name.as_str()),
-                    config.name.clone(),
-                    self.conn.clone(),
-                )
-            })
+            )?;
+        Ok(Cache::new(
+            string_to_java_hashcode(config.name.as_str()),
+            config.clone(),
+            self.conn.clone(),
+        ))
     }
 
     fn get_cache_config(&mut self, name: &str) -> IgniteResult<CacheConfiguration> {

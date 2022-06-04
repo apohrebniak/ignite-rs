@@ -1,4 +1,4 @@
-use crate::cache::CachePeekMode;
+use crate::cache::{CachePeekMode};
 use crate::error::IgniteResult;
 use crate::protocol::{read_bool, read_i32, read_i64, write_bool, write_i32, write_null, write_u8};
 use crate::{ReadableReq, ReadableType, WritableType, WriteableReq};
