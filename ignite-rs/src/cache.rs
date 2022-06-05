@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::io::Read;
 
 use crate::api::key_value::{CacheBoolResp, CacheDataObjectResp, CachePairsResp, CacheReq, CacheSizeResp, QueryScanResp};
 use crate::cache::AtomicityMode::{Atomic, Transactional};
@@ -15,7 +16,8 @@ use crate::api::OpCode;
 use crate::connection::Connection;
 use crate::{ReadableType, WritableType};
 use std::marker::PhantomData;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use crate::protocol::{read_bool, read_i32, read_i64};
 
 #[derive(Clone, Debug)]
 pub enum AtomicityMode {
@@ -295,6 +297,24 @@ impl<K: WritableType + ReadableType, V: WritableType + ReadableType> Cache<K, V>
         self.conn
             .send_and_read(OpCode::QueryScan, CacheReq::QueryScan::<K, V>(self.id, page_size))
             .map(|resp: QueryScanResp<K, V>| resp.val)
+    }
+
+    pub fn query_scan_dyn(
+        &self,
+        page_size: i32,
+        cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>
+    ) -> IgniteResult<bool> {
+        let req = CacheReq::QueryScan::<K, V>(self.id, page_size);
+        let more: Arc<Mutex<Option<bool>>> = Arc::new(Mutex::new(None));
+        self.conn.send_and_read_dyn(OpCode::QueryScan, req, &mut |mut buf| {
+            let _cursor_id = read_i64(&mut buf)?;
+            let count = read_i32(&mut buf)?;
+            cb(&mut buf, count)?;
+            more.lock().unwrap().replace(read_bool(&mut buf)?);
+            Ok(())
+        })?;
+        let more = more.lock().unwrap().ok_or(IgniteError::from("Callback not invoked!"))?;
+        Ok(more)
     }
 
     pub fn get(&self, key: &K) -> IgniteResult<Option<V>> {

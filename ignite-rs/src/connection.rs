@@ -75,6 +75,19 @@ impl Connection {
         Connection::send_and_read_safe(sock_lock, op_code, data)
     }
 
+    /// Send message, let the caller read the result. Acquires lock
+    pub(crate) fn send_and_read_dyn(
+        &self,
+        op_code: OpCode,
+        req: impl WriteableReq,
+        cb: &mut dyn Fn(&mut dyn Read) -> IgniteResult<()>
+    ) -> IgniteResult<()> {
+        let buf = &mut *self.stream.lock().unwrap(); //acquire lock on socket
+        Connection::send_safe(buf, op_code, req)?; //send request and read the response
+        cb(&mut Box::new(buf))?;
+        Ok(())
+    }
+
     fn send_safe<RW: Read + Write>(
         con: &mut RW,
         op_code: OpCode,

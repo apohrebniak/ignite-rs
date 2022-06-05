@@ -148,7 +148,7 @@ pub fn read_string(reader: &mut impl Read) -> io::Result<String> {
     }
 }
 
-pub fn read_bool(reader: &mut impl Read) -> io::Result<bool> {
+pub fn read_bool(reader: &mut (impl Read + ?Sized)) -> io::Result<bool> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(0u8.ne(&new_alloc[0])),
@@ -216,7 +216,7 @@ pub fn write_i16(writer: &mut dyn Write, v: i16) -> io::Result<()> {
     Ok(())
 }
 
-pub fn read_i32(reader: &mut impl Read) -> io::Result<i32> {
+pub fn read_i32(reader: &mut (impl Read + ?Sized)) -> io::Result<i32> {
     let mut new_alloc = [0u8; 4];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(i32::from_le_bytes(new_alloc)),
@@ -242,7 +242,7 @@ pub fn write_u32(writer: &mut dyn Write, v: u32) -> io::Result<()> {
     Ok(())
 }
 
-pub fn read_i64(reader: &mut impl Read) -> io::Result<i64> {
+pub fn read_i64(reader: &mut (impl Read + ?Sized)) -> io::Result<i64> {
     let mut new_alloc = [0u8; 8];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(i64::from_le_bytes(new_alloc)),
