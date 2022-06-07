@@ -115,6 +115,64 @@ pub fn read_wrapped_data<T: ReadableType>(reader: &mut impl Read) -> IgniteResul
     }
 }
 
+/// Reads data objects that are wrapped in the WrappedData(type code = 27)
+pub fn read_wrapped_data_dyn(
+    reader: &mut Read,
+    cb: &mut dyn Fn(&mut Read, i32) -> IgniteResult<()>
+) -> IgniteResult<()> {
+    let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    match type_code {
+        TypeCode::WrappedData => {
+            let len = read_i32(reader)?;
+            let value = cb(reader, len)?;
+            let _offset = read_i32(reader)?;
+            Ok(())
+        }
+        _ => Err(IgniteError::from("Data is not wrapped!"))
+    }
+}
+
+/// Reads a complex object (type code = 103)
+pub fn read_complex_obj_dyn(
+    reader: &mut Read,
+    cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>
+) -> IgniteResult<()> {
+    let type_code = TypeCode::try_from(read_u8(reader)?)?;
+    match type_code {
+        TypeCode::ComplexObj => {
+            let _ver = read_u8(reader)?; // 1
+            let flags = read_u16(reader)?; // 43
+            let _type_id = read_i32(reader)?;
+            let _hash_code = read_i32(reader)?;
+            let len = read_i32(reader)?; // 157
+            let schema_id = read_i32(reader)?;
+
+            let value = cb(reader, len)?;
+
+            // Footer / schema
+            if flags & FLAG_HAS_SCHEMA != 0 {
+                if flags & FLAG_COMPACT_FOOTER != 0 {
+                    if flags & FLAG_OFFSET_ONE_BYTE != 0 {
+                        let field_count = 2;
+                        for _ in 0..field_count {
+                            let _ = read_u8(reader)?;
+                        }
+                    } else {
+                        todo!()
+                    }
+                } else {
+                    todo!()
+                }
+            } else {
+                // no schema, nothing to do
+            }
+
+            Ok(())
+        }
+        _ => Err(IgniteError::from("Data is not wrapped!"))
+    }
+}
+
 /// This function is basically a String's PackType implementation but for &str.
 /// It should be used only for strings in request bodies (like cache creation, configuration etc.)
 /// not for KV (a.k.a DataObject)
@@ -135,7 +193,7 @@ pub fn write_string(writer: &mut dyn Write, value: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub fn read_string(reader: &mut impl Read) -> io::Result<String> {
+pub fn read_string(reader: &mut (impl Read + ?Sized)) -> io::Result<String> {
     let str_len = read_i32(reader)?;
 
     let mut new_alloc = vec![0u8; str_len as usize];
@@ -164,7 +222,7 @@ pub fn write_bool(writer: &mut dyn Write, v: bool) -> io::Result<()> {
     }
 }
 
-pub fn read_u8(reader: &mut impl Read) -> io::Result<u8> {
+pub fn read_u8(reader: &mut (impl Read + ?Sized)) -> io::Result<u8> {
     let mut new_alloc = [0u8; 1];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(u8::from_le_bytes(new_alloc)),
@@ -190,7 +248,7 @@ pub fn write_i8(writer: &mut dyn Write, v: i8) -> io::Result<()> {
     Ok(())
 }
 
-pub fn read_u16(reader: &mut impl Read) -> io::Result<u16> {
+pub fn read_u16(reader: &mut (impl Read + ?Sized)) -> io::Result<u16> {
     let mut new_alloc = [0u8; 2];
     match reader.read_exact(&mut new_alloc[..]) {
         Ok(_) => Ok(u16::from_le_bytes(new_alloc)),
