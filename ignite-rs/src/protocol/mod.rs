@@ -117,16 +117,16 @@ pub fn read_wrapped_data<T: ReadableType>(reader: &mut impl Read) -> IgniteResul
 
 /// Reads data objects that are wrapped in the WrappedData(type code = 27)
 pub fn read_wrapped_data_dyn(
-    reader: &mut Read,
-    cb: &mut dyn Fn(&mut Read, i32) -> IgniteResult<()>
+    reader: &mut dyn Read,
+    cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>
 ) -> IgniteResult<()> {
     let type_code = TypeCode::try_from(read_u8(reader)?)?;
     match type_code {
         TypeCode::WrappedData => {
             let len = read_i32(reader)?;
-            let value = cb(reader, len)?;
+            let value = cb(reader, len);
             let _offset = read_i32(reader)?;
-            Ok(())
+            value
         }
         _ => Err(IgniteError::from("Data is not wrapped!"))
     }
@@ -134,7 +134,7 @@ pub fn read_wrapped_data_dyn(
 
 /// Reads a complex object (type code = 103)
 pub fn read_complex_obj_dyn(
-    reader: &mut Read,
+    reader: &mut dyn Read,
     cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>
 ) -> IgniteResult<()> {
     let type_code = TypeCode::try_from(read_u8(reader)?)?;
@@ -145,9 +145,9 @@ pub fn read_complex_obj_dyn(
             let _type_id = read_i32(reader)?;
             let _hash_code = read_i32(reader)?;
             let len = read_i32(reader)?; // 157
-            let schema_id = read_i32(reader)?;
+            let _schema_id = read_i32(reader)?;
 
-            let value = cb(reader, len)?;
+            let value = cb(reader, len);
 
             // Footer / schema
             if flags & FLAG_HAS_SCHEMA != 0 {
@@ -167,7 +167,7 @@ pub fn read_complex_obj_dyn(
                 // no schema, nothing to do
             }
 
-            Ok(())
+            value
         }
         _ => Err(IgniteError::from("Data is not wrapped!"))
     }
