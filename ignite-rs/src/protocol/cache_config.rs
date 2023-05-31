@@ -253,7 +253,7 @@ fn read_query_entities(reader: &mut impl Read) -> IgniteResult<Vec<QueryEntity>>
         let key_type = String::read(reader)?.unwrap();
         let value_type = String::read(reader)?.unwrap();
         let table = String::read(reader)?.unwrap();
-        let key_field = String::read(reader)?.unwrap();
+        let key_field = String::read(reader)?.unwrap_or("".to_string());
         let value_field = String::read(reader)?.unwrap_or("".to_string());
         let query_fields = read_query_fields(reader)?;
         let field_aliases = read_query_field_aliases(reader)?;
