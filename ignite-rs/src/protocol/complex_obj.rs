@@ -150,12 +150,10 @@ impl WritableType for ComplexObject {
         }
 
         // https://apacheignite.readme.io/docs/binary-client-protocol-data-format#complex-object
+        let flags = FLAG_COMPACT_FOOTER | FLAG_OFFSET_ONE_BYTE | FLAG_HAS_SCHEMA | FLAG_USER_TYPE;
         write_u8(writer, TypeCode::ComplexObj as u8)?; // complex type - offset 0
         write_u8(writer, 1)?; // version - offset 1
-        write_u16(
-            writer,
-            FLAG_COMPACT_FOOTER | FLAG_OFFSET_ONE_BYTE | FLAG_HAS_SCHEMA | FLAG_USER_TYPE,
-        )?; // flags - 2 - TODO: > 1 byte offsets
+        write_u16(writer, flags)?; // flags - 2 - TODO: > 1 byte offsets
         write_i32(
             writer,
             string_to_java_hashcode(self.schema.type_name.to_lowercase().as_str()),
