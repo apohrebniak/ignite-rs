@@ -1,4 +1,4 @@
-use crate::cache::{CachePeekMode};
+use crate::cache::CachePeekMode;
 use crate::error::IgniteResult;
 use crate::protocol::{read_bool, read_i32, read_i64, write_bool, write_i32, write_null, write_u8};
 use crate::{ReadableReq, ReadableType, WritableType, WriteableReq};
@@ -167,12 +167,13 @@ impl<'a, K: WritableType, V: WritableType> WriteableReq for CacheReq<'a, K, V> {
                 }
                 size
             }
-            CacheReq::QueryScan(_, _) => CACHE_ID_MAGIC_BYTE_SIZE
+            CacheReq::QueryScan(_, _) => {
+                CACHE_ID_MAGIC_BYTE_SIZE
                 + size_of::<u8>() // Null filter
                 + size_of::<i32>() // Cursor page size
                 + size_of::<i32>() // Partition count
-                + size_of::<u8>() // local only flag
-            ,
+                + size_of::<u8>()
+            } // local only flag
         }
     }
 }

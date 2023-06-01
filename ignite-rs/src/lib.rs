@@ -207,9 +207,9 @@ impl Ignite for Client {
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
         self.conn.send(
-                OpCode::CacheCreateWithName,
-                CacheCreateWithNameReq::from(name),
-            )?;
+            OpCode::CacheCreateWithName,
+            CacheCreateWithNameReq::from(name),
+        )?;
         let cfg = self.get_cache_config(name)?;
         Ok(Cache::new(
             string_to_java_hashcode(name),
@@ -222,11 +222,10 @@ impl Ignite for Client {
         &mut self,
         name: &str,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send(
-                OpCode::CacheGetOrCreateWithName,
-                CacheGetOrCreateWithNameReq::from(name),
-            )?;
+        self.conn.send(
+            OpCode::CacheGetOrCreateWithName,
+            CacheGetOrCreateWithNameReq::from(name),
+        )?;
         let cfg = self.get_cache_config(name)?;
         Ok(Cache::new(
             string_to_java_hashcode(name),
@@ -239,11 +238,10 @@ impl Ignite for Client {
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send(
-                OpCode::CacheCreateWithConfiguration,
-                CacheCreateWithConfigReq { config },
-            )?;
+        self.conn.send(
+            OpCode::CacheCreateWithConfiguration,
+            CacheCreateWithConfigReq { config },
+        )?;
         Ok(Cache::new(
             string_to_java_hashcode(config.name.as_str()),
             config.clone(),
@@ -258,11 +256,10 @@ impl Ignite for Client {
         &mut self,
         config: &CacheConfiguration,
     ) -> IgniteResult<Cache<K, V>> {
-        self.conn
-            .send(
-                OpCode::CacheGetOrCreateWithConfiguration,
-                CacheGetOrCreateWithConfigReq { config },
-            )?;
+        self.conn.send(
+            OpCode::CacheGetOrCreateWithConfiguration,
+            CacheGetOrCreateWithConfigReq { config },
+        )?;
         Ok(Cache::new(
             string_to_java_hashcode(config.name.as_str()),
             config.clone(),

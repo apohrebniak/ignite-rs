@@ -11,7 +11,10 @@ use crate::cache::{
 use crate::error::IgniteError;
 use crate::error::IgniteResult;
 use crate::protocol::cache_config::ConfigPropertyCode::*;
-use crate::protocol::{read_bool, read_i32, read_i64, read_object, read_u8, write_bool, write_i16, write_i32, write_i64, write_string_type_code, write_u8};
+use crate::protocol::{
+    read_bool, read_i32, read_i64, read_object, read_u8, write_bool, write_i16, write_i32,
+    write_i64, write_string_type_code, write_u8,
+};
 use crate::ReadableType;
 use std::io;
 

@@ -80,7 +80,7 @@ impl Connection {
         &self,
         op_code: OpCode,
         req: impl WriteableReq,
-        cb: &mut dyn Fn(&mut dyn Read) -> IgniteResult<()>
+        cb: &mut dyn Fn(&mut dyn Read) -> IgniteResult<()>,
     ) -> IgniteResult<()> {
         let buf = &mut *self.stream.lock().unwrap(); //acquire lock on socket
         Connection::send_safe(buf, op_code, req)?; //send request and read the response
@@ -169,5 +169,25 @@ impl Connection {
             stream.set_ttl(ttl)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::complex_obj::ComplexObject;
+    use crate::{new_client, Ignite};
+
+    #[test]
+    fn test_read() {
+        let config = ClientConfig::new("localhost:10800");
+        let mut ignite = new_client(config).unwrap();
+        let table_name = "SQL_PUBLIC_BLOCKS";
+        let cfg = ignite.get_cache_config(table_name).unwrap();
+        let cache = ignite
+            .get_or_create_cache::<i64, ComplexObject>(table_name)
+            .unwrap();
+        let rows = cache.query_scan(100).unwrap();
+        assert_eq!(1, 1);
     }
 }

@@ -7,10 +7,12 @@ use crate::{Enum, ReadableType};
 use std::convert::TryFrom;
 
 pub(crate) mod cache_config;
+pub mod complex_obj;
 pub(crate) mod data_types;
 
 pub const FLAG_USER_TYPE: u16 = 0x0001;
 pub const FLAG_HAS_SCHEMA: u16 = 0x0002;
+pub const HAS_RAW_DATA: u16 = 0x0004;
 pub const FLAG_COMPACT_FOOTER: u16 = 0x0020;
 pub const FLAG_OFFSET_ONE_BYTE: u16 = 0x0008;
 pub const FLAG_OFFSET_TWO_BYTES: u16 = 0x0010;
@@ -19,9 +21,8 @@ pub const COMPLEX_OBJ_HEADER_LEN: i32 = 24;
 
 /// All Data types described in Binary Protocol
 /// https://apacheignite.readme.io/docs/binary-client-protocol-data-format
-#[derive(PartialOrd, PartialEq)]
+#[derive(PartialOrd, PartialEq, Debug)]
 pub enum TypeCode {
-    // primitives
     Byte = 1,
     Short = 2,
     Int = 3,
@@ -30,10 +31,7 @@ pub enum TypeCode {
     Double = 6,
     Char = 7,
     Bool = 8,
-    // standard objects
     String = 9,
-    Enum = 28,
-    // arrays of primitives
     ArrByte = 12,
     ArrShort = 13,
     ArrInt = 14,
@@ -42,12 +40,13 @@ pub enum TypeCode {
     ArrDouble = 17,
     ArrChar = 18,
     ArrBool = 19,
-    // object collections
     ArrObj = 23,
     Collection = 24,
-    ComplexObj = 103,
-    Null = 101,
     WrappedData = 27,
+    Enum = 28,
+    TimestampArray = 34,
+    Null = 101,
+    ComplexObj = 103,
 }
 
 impl TryFrom<u8> for TypeCode {
@@ -97,7 +96,9 @@ fn read_object(reader: &mut impl Read) -> IgniteResult<Option<()>> {
     let code = code?;
     match code {
         TypeCode::Null => Ok(Some(())),
-        _ => Err(IgniteError::from(format!("Cannot read TypeCode {}", flag).as_str())),
+        _ => Err(IgniteError::from(
+            format!("Cannot read TypeCode {}", flag).as_str(),
+        )),
     }
 }
 
@@ -118,7 +119,7 @@ pub fn read_wrapped_data<T: ReadableType>(reader: &mut impl Read) -> IgniteResul
 /// Reads data objects that are wrapped in the WrappedData(type code = 27)
 pub fn read_wrapped_data_dyn(
     reader: &mut dyn Read,
-    cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>
+    cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>,
 ) -> IgniteResult<()> {
     let type_code = TypeCode::try_from(read_u8(reader)?)?;
     match type_code {
@@ -128,49 +129,42 @@ pub fn read_wrapped_data_dyn(
             let _offset = read_i32(reader)?;
             value
         }
-        _ => Err(IgniteError::from("Data is not wrapped!"))
+        _ => Err(IgniteError::from("Data is not wrapped!")),
     }
 }
 
 /// Reads a complex object (type code = 103)
 pub fn read_complex_obj_dyn(
     reader: &mut dyn Read,
-    cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>
+    cb: &mut dyn Fn(&mut dyn Read, i32) -> IgniteResult<()>,
 ) -> IgniteResult<()> {
-    let type_code = TypeCode::try_from(read_u8(reader)?)?;
-    match type_code {
-        TypeCode::ComplexObj => {
-            let _ver = read_u8(reader)?; // 1
-            let flags = read_u16(reader)?; // 43
-            let _type_id = read_i32(reader)?;
-            let _hash_code = read_i32(reader)?;
-            let len = read_i32(reader)?; // 157
-            let _schema_id = read_i32(reader)?;
+    let _ver = read_u8(reader)?; // 1
+    let flags = read_u16(reader)?; // 43
+    let _type_id = read_i32(reader)?;
+    let _hash_code = read_i32(reader)?;
+    let len = read_i32(reader)?; // 157
+    let _schema_id = read_i32(reader)?;
 
-            let value = cb(reader, len);
+    let value = cb(reader, len);
 
-            // Footer / schema
-            if flags & FLAG_HAS_SCHEMA != 0 {
-                if flags & FLAG_COMPACT_FOOTER != 0 {
-                    if flags & FLAG_OFFSET_ONE_BYTE != 0 {
-                        let field_count = 2;
-                        for _ in 0..field_count {
-                            let _ = read_u8(reader)?;
-                        }
-                    } else {
-                        todo!()
-                    }
-                } else {
-                    todo!()
+    // Footer / schema
+    if flags & FLAG_HAS_SCHEMA != 0 {
+        if flags & FLAG_COMPACT_FOOTER != 0 {
+            if flags & FLAG_OFFSET_ONE_BYTE != 0 {
+                let field_count = 2;
+                for _ in 0..field_count {
+                    let _ = read_u8(reader)?;
                 }
             } else {
-                // no schema, nothing to do
+                todo!()
             }
-
-            value
+        } else {
+            todo!()
         }
-        _ => Err(IgniteError::from("Data is not wrapped!"))
+    } else {
+        // no schema, nothing to do
     }
+    value
 }
 
 /// This function is basically a String's PackType implementation but for &str.
