@@ -1,6 +1,6 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{
-    read_complex_obj_dyn, read_i16, read_i32, read_string, read_u16, read_u8, write_i32, write_i64,
+    read_i16, read_i32, read_string, read_u16, read_u8, write_i32, write_i64,
     write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
     FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA,
 };
@@ -65,7 +65,7 @@ impl ReadableType for ComplexObject {
                 let flags = read_u16(&mut header)?; // offset 2
                 let _type_id = read_i32(&mut header)?; // offset 4
                 let _hash_code = read_i32(&mut header)?; // offset 8
-                let object_len = read_i32(&mut header)? as usize; // offset 12
+                let _object_len = read_i32(&mut header)? as usize; // offset 12
                 let _schema_id = read_i32(&mut header)?; // offset 16
                 let fields_offset_offset = read_i32(&mut header)? as usize; // offset 20
 
@@ -74,10 +74,10 @@ impl ReadableType for ComplexObject {
                     (flags & FLAG_OFFSET_ONE_BYTE) != 0,
                     (flags & FLAG_OFFSET_TWO_BYTES) != 0,
                 );
-                let has_raw = flags & HAS_RAW_DATA != 0;
-                let compact = flags & FLAG_COMPACT_FOOTER != 0;
-                let has_scema = flags & FLAG_HAS_SCHEMA != 0;
-                let user_type = flags & FLAG_USER_TYPE != 0;
+                let _has_raw = flags & HAS_RAW_DATA != 0;
+                let _compact = flags & FLAG_COMPACT_FOOTER != 0;
+                let _has_scema = flags & FLAG_HAS_SCHEMA != 0;
+                let _user_type = flags & FLAG_USER_TYPE != 0;
                 let offset_sz = match (one, two) {
                     (true, false) => 1,
                     (false, true) => 2,
@@ -93,11 +93,6 @@ impl ReadableType for ComplexObject {
                 let mut remainder = Cursor::new(data);
                 remainder.set_position(COMPLEX_OBJ_HEADER_LEN as u64);
                 while (remainder.position() as usize) < fields_offset_offset {
-                    println!(
-                        "remainder.position() = {} < {}",
-                        remainder.position(),
-                        fields_offset_offset
-                    );
                     let type_code = TypeCode::try_from(read_u8(&mut remainder)?)?;
                     let val = match type_code {
                         TypeCode::String => IgniteValue::String(read_string(&mut remainder)?),
@@ -107,15 +102,14 @@ impl ReadableType for ComplexObject {
                             Err(IgniteError::from(msg.as_str()))?
                         }
                     };
-                    println!("{:?}", val);
+                    me.values.push(val);
                 }
-                let raw_data_offset = match offset_sz {
+                let _raw_data_offset = match offset_sz {
                     1 => read_u8(&mut remainder)? as usize,
                     2 => read_i16(&mut remainder)? as usize,
                     4 => read_i32(&mut remainder)? as usize,
                     _ => Err(IgniteError::from("Invalid offset size!"))?,
                 };
-                println!("complex");
             }
             _ => todo!("Missing type code"),
         }
