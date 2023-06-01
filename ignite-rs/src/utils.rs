@@ -7,12 +7,13 @@ pub fn string_to_java_hashcode(value: &str) -> i32 {
     hash
 }
 
-pub fn bytes_to_java_hashcode(bytes: &[u8]) -> i32 {
-    let mut hash: i32 = 0;
-    for byte in bytes.iter() {
-        hash = 31i32.overflowing_mul(hash).0 + *byte as i32;
+pub fn bytes_to_java_hashcode(data: &[u8]) -> i32 {
+    let len = data.len();
+    let mut h: i32 = 1;
+    for i in 0..len {
+        h = h.wrapping_mul(31).wrapping_add(i32::from(data[i] as i8));
     }
-    hash
+    h
 }
 
 /// FNV1 hash offset basis

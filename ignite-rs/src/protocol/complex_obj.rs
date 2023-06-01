@@ -11,7 +11,7 @@ use std::io::{Cursor, ErrorKind, Read, Write};
 use std::mem::size_of;
 use std::sync::Arc;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IgniteValue {
     String(String),
     Long(i64),
@@ -137,7 +137,10 @@ impl WritableType for ComplexObject {
         let mut fields: Vec<u8> = Vec::new();
         for val in &self.values {
             match val {
-                IgniteValue::String(val) => write_string(&mut fields, val)?,
+                IgniteValue::String(val) => {
+                    write_u8(&mut fields, TypeCode::String as u8)?;
+                    write_string(&mut fields, val)?
+                },
                 IgniteValue::Long(val) => {
                     write_u8(&mut fields, TypeCode::Long as u8)?;
                     write_i64(&mut fields, *val)?;
@@ -151,13 +154,11 @@ impl WritableType for ComplexObject {
 
         // https://apacheignite.readme.io/docs/binary-client-protocol-data-format#complex-object
         let flags = FLAG_COMPACT_FOOTER | FLAG_OFFSET_ONE_BYTE | FLAG_HAS_SCHEMA | FLAG_USER_TYPE;
+        let type_name = self.schema.type_name.to_lowercase();
         write_u8(writer, TypeCode::ComplexObj as u8)?; // complex type - offset 0
         write_u8(writer, 1)?; // version - offset 1
         write_u16(writer, flags)?; // flags - 2 - TODO: > 1 byte offsets
-        write_i32(
-            writer,
-            string_to_java_hashcode(self.schema.type_name.to_lowercase().as_str()),
-        )?; // type_id - offset 4
+        write_i32(writer, string_to_java_hashcode(type_name.as_str()))?; // type_id - offset 4
         write_i32(writer, bytes_to_java_hashcode(fields.as_slice()))?; // hash - offset 8
         write_i32(writer, self.size() as i32)?; // size - offset 12
         write_i32(writer, get_schema_id(&self.schema.fields))?; // schema_id - offset 16
@@ -177,11 +178,85 @@ impl WritableType for ComplexObject {
             .iter()
             .fold(COMPLEX_OBJ_HEADER_LEN as usize, |acc, cur| {
                 acc + match cur {
-                    IgniteValue::String(str) => size_of::<i32>() + str.len(),
+                    IgniteValue::String(str) => size_of::<i32>() + str.len() + 1,
                     IgniteValue::Long(_) => size_of::<i64>() + 1,
                     IgniteValue::Int(_) => size_of::<i32>() + 1,
                 }
             });
         size + 1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::convert::TryInto;
+    use super::*;
+    use crate::protocol::complex_obj::ComplexObject;
+    use crate::{new_client, Ignite};
+
+    #[test]
+    fn test_round_trip() {
+        let type_name = "SQL_PUBLIC_BLOCKS_0b97e1e7_4722_4c63_8da3_970cb21c469f";
+        let expected_bytes = hex_literal::hex!(
+            "67" // type
+            "01" // version
+            "2B 00" // Flags for compat footer, one byte offset, has schema, user type
+            "2F 98 D7 B0" // Hash of type name
+            "0A 89 93 7C" // Hash of fields slice
+            "73 00 00 00" // total size including header - wrong?
+            "C0 40 3B B5" // hash of field names
+            "69 00 00 00" // Offset to the offset to field data (why?)
+
+            "09 05 00 00 00 30 78 61 62 63" // block_hash = 0xabc
+            "09 05 00 00 00 31 31 3A 30 30" // time_stamp = 11:00
+            "09 05 00 00 00 30 78 64 65 66" // miner = 0xdef
+            "09 05 00 00 00 30 78 31 32 33" // parent_hash = 0x123
+            "09 06 00 00 00 30 2E 30 30 30 31" // reward = 0.0001
+            "03 64 00 00 00" // size_ = 100
+            "03 E7 03 00 00" // gas_used = 999
+            "03 E9 03 00 00" // gas_limit = 1001
+            "09 05 00 00 00 30 2E 30 30 31" // base_fee_per_gas = 0.001
+            "03 43 00 00 00" // transaction_count = 67
+            
+            "18" // offset to data
+        );
+        let schema = ComplexObjectSchema {
+            type_name: type_name.to_string(),
+            fields: vec![
+                "BLOCK_HASH".to_string(),
+                "TIME_STAMP".to_string(),
+                "MINER".to_string(),
+                "PARENT_HASH".to_string(),
+                "REWARD".to_string(),
+                "SIZE_".to_string(),
+                "GAS_USED".to_string(),
+                "GAS_LIMIT".to_string(),
+                "BASE_FEE_PER_GAS".to_string(),
+                "TRANSACTION_COUNT".to_string(),
+            ]
+        };
+
+        // deserialize
+        let mut reader = Cursor::new(expected_bytes);
+        let type_code = read_u8(&mut reader).unwrap();
+        let mut val = ComplexObject::read_unwrapped(type_code.try_into().unwrap(), &mut reader).unwrap().unwrap();
+        let actual_values = format!("{:?}", val.values);
+        let expected_values = r#"[String("0xabc"), String("11:00"), String("0xdef"), String("0x123"), String("0.0001"), Int(100), Int(999), Int(1001), String("0.001"), Int(67)]"#;
+        assert_eq!(actual_values, expected_values);
+
+        // set schema stuff so it has info info to save itself
+        let val = ComplexObject {
+            schema: Arc::new(schema),
+            values: val.values.clone(),
+        };
+
+        // serialize
+        let mut actual_bytes = vec![];
+        val.write(&mut actual_bytes).unwrap();
+
+        let expected_hex = format!("{:02X?}", expected_bytes);
+        let actual_hex = format!("{:02X?}", actual_bytes);
+        println!("len={}", actual_bytes.len());
+        assert_eq!(actual_hex, expected_hex);
     }
 }
