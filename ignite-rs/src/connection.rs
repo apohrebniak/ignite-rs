@@ -190,6 +190,6 @@ mod tests {
             .get_or_create_cache::<i64, ComplexObject>(table_name)
             .unwrap();
         let rows = cache.query_scan(100).unwrap();
-        assert_eq!(1, 1);
+        assert_eq!(rows.len(), 1);
     }
 }
