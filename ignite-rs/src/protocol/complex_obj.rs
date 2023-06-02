@@ -1,8 +1,8 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{
-    read_i32, read_i64, read_string, read_u16, read_u8, write_i16, write_i32, write_i64, write_i8,
-    write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
-    FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA,
+    read_i32, read_i64, read_string, read_u16, read_u8, write_i32, write_i64, write_string,
+    write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER, FLAG_HAS_SCHEMA,
+    FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA,
 };
 use crate::utils::{bytes_to_java_hashcode, get_schema_id, string_to_java_hashcode};
 use crate::{ReadableType, WritableType};
@@ -33,29 +33,31 @@ pub struct ComplexObject {
 }
 
 impl ComplexObject {
-    fn get_field_data(&self) -> std::io::Result<(Vec<u8>, Vec<i32>)> {
-        let mut fields: Vec<u8> = Vec::new();
-        let mut offsets: Vec<i32> = Vec::new();
-        for val in &self.values {
+    fn get_data(&self) -> std::io::Result<(Vec<u8>, Vec<u8>)> {
+        let mut values: Vec<u8> = Vec::new();
+        let mut schema: Vec<u8> = Vec::new();
+        for (val, field) in self.values.iter().zip(self.schema.fields.iter()) {
+            write_i32(
+                &mut schema,
+                string_to_java_hashcode(field.to_lowercase().as_str()),
+            )?;
+            write_i32(&mut schema, COMPLEX_OBJ_HEADER_LEN + values.len() as i32)?;
             match val {
                 IgniteValue::String(val) => {
-                    offsets.push(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32);
-                    write_u8(&mut fields, TypeCode::String as u8)?;
-                    write_string(&mut fields, val)?
+                    write_u8(&mut values, TypeCode::String as u8)?;
+                    write_string(&mut values, val)?
                 }
                 IgniteValue::Long(val) => {
-                    offsets.push(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32);
-                    write_u8(&mut fields, TypeCode::Long as u8)?;
-                    write_i64(&mut fields, *val)?;
+                    write_u8(&mut values, TypeCode::Long as u8)?;
+                    write_i64(&mut values, *val)?;
                 }
                 IgniteValue::Int(val) => {
-                    offsets.push(COMPLEX_OBJ_HEADER_LEN + fields.len() as i32);
-                    write_u8(&mut fields, TypeCode::Int as u8)?;
-                    write_i32(&mut fields, *val)?;
+                    write_u8(&mut values, TypeCode::Int as u8)?;
+                    write_i32(&mut values, *val)?;
                 }
             }
         }
-        Ok((fields, offsets))
+        Ok((values, schema))
     }
 
     pub fn get_offset_flags(offsets: &[i32]) -> u16 {
@@ -88,7 +90,7 @@ impl ReadableType for ComplexObject {
             TypeCode::String => {
                 let str = read_string(reader).unwrap();
                 let field = IgniteValue::String(str);
-                me.values.push(field);
+                me.values.push(field); // TODO: set type_name to "java.lang.Long"
             }
             TypeCode::Long => {
                 let val = read_i64(reader).unwrap();
@@ -113,9 +115,9 @@ impl ReadableType for ComplexObject {
                 let type_id = read_i32(&mut header)?; // offset 4
                 let _hash_code = read_i32(&mut header)?; // offset 8
                 let object_len = read_i32(&mut header)? as usize; // offset 12
-                let _schema_id = read_i32(&mut header)?; // offset 16
+                let schema_id = read_i32(&mut header)?; // offset 16
                 let field_indexes_offset = read_i32(&mut header)? as usize; // offset 20
-                println!("type_id={type_id}");
+                println!("read type_id={type_id} schema_id={schema_id}");
 
                 // compute stuff we need to read body
                 let (one, two) = (
@@ -123,17 +125,13 @@ impl ReadableType for ComplexObject {
                     (flags & FLAG_OFFSET_TWO_BYTES) != 0,
                 );
                 assert_eq!(flags & HAS_RAW_DATA, 0, "Cannot read raw data");
-                assert_ne!(
-                    flags & FLAG_COMPACT_FOOTER,
-                    0,
-                    "Only compact footers are supported"
-                );
+                let _compact = flags & FLAG_COMPACT_FOOTER != 0;
                 assert_ne!(flags & FLAG_HAS_SCHEMA, 0, "Schema is required");
                 assert_ne!(flags & FLAG_USER_TYPE, 0, "Only user types are supported");
                 let _offset_sz = match (one, two) {
                     (true, false) => 1,
                     (false, true) => 2,
-                    (false, false) => Err(IgniteError::from("Four byte offsets not supported"))?,
+                    (false, false) => 4,
                     (true, true) => Err(IgniteError::from("Invalid offset flags"))?,
                 };
 
@@ -185,31 +183,24 @@ impl WritableType for ComplexObject {
         }
 
         // write fields to vec so we can hash
-        let (fields, offsets) = self.get_field_data()?;
-        let offset_sz_flags = ComplexObject::get_offset_flags(offsets.as_slice());
+        let (values, schema) = self.get_data()?;
 
         // https://apacheignite.readme.io/docs/binary-client-protocol-data-format#complex-object
-        let flags = FLAG_COMPACT_FOOTER | offset_sz_flags | FLAG_HAS_SCHEMA | FLAG_USER_TYPE;
+        let flags = FLAG_HAS_SCHEMA | FLAG_USER_TYPE;
         let type_name = self.schema.type_name.to_lowercase();
         let type_id = string_to_java_hashcode(type_name.as_str());
         let schema_id = get_schema_id(&self.schema.fields);
-        println!("schema_id={schema_id} type_id={type_id}");
+        println!("wrote type_id={type_id} schema_id={schema_id}");
         write_u8(writer, TypeCode::ComplexObj as u8)?; // complex type - offset 0
         write_u8(writer, 1)?; // version - offset 1
         write_u16(writer, flags)?; // flags - 2 - TODO: > 1 byte offsets
         write_i32(writer, type_id)?; // type_id - offset 4
-        write_i32(writer, bytes_to_java_hashcode(fields.as_slice()))?; // hash - offset 8
+        write_i32(writer, bytes_to_java_hashcode(values.as_slice()))?; // hash - offset 8
         write_i32(writer, self.size() as i32)?; // size - offset 12
         write_i32(writer, schema_id)?; // schema_id - offset 16
-        write_i32(writer, COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)?; // offset to the offset to field data - 20
-        writer.write_all(&fields)?; // field data - offset 24
-        for offset in offsets {
-            match offset_sz_flags {
-                FLAG_OFFSET_ONE_BYTE => write_i8(writer, offset as i8)?,
-                FLAG_OFFSET_TWO_BYTES => write_i16(writer, offset as i16)?,
-                _ => write_i32(writer, offset as i32)?,
-            }
-        }
+        write_i32(writer, COMPLEX_OBJ_HEADER_LEN + values.len() as i32)?; // offset to schema
+        writer.write_all(&values)?; // field data - offset 24
+        writer.write_all(&schema)?;
 
         Ok(())
     }
@@ -218,25 +209,8 @@ impl WritableType for ComplexObject {
         if self.schema.type_name == "java.lang.Long" {
             return size_of::<i64>() + 1;
         }
-        let (_, offsets) = self.get_field_data().expect("Can't get size!");
-        let offset_sz_flags = ComplexObject::get_offset_flags(offsets.as_slice());
-        let offset_byte_cnt = match offset_sz_flags {
-            FLAG_OFFSET_ONE_BYTE => 1,
-            FLAG_OFFSET_TWO_BYTES => 2,
-            _ => 4,
-        };
-        let type_code_sz = 1;
-        let size = self
-            .values
-            .iter()
-            .fold(COMPLEX_OBJ_HEADER_LEN as usize, |acc, cur| {
-                acc + match cur {
-                    IgniteValue::String(str) => size_of::<i32>() + str.len() + type_code_sz,
-                    IgniteValue::Long(_) => size_of::<i64>() + type_code_sz,
-                    IgniteValue::Int(_) => size_of::<i32>() + type_code_sz,
-                }
-            });
-        size + self.values.len() * offset_byte_cnt
+        let (values, schema) = self.get_data().expect("Can't get size!");
+        values.len() + schema.len() + COMPLEX_OBJ_HEADER_LEN as usize
     }
 }
 
