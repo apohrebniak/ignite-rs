@@ -1,4 +1,6 @@
 /// Converts string into Java-like hash code
+// Note: we do not call lowercase() in here like the docs say
+// because _sometimes_ it needs to be upper case, like in CacheGetConfigReq
 pub fn string_to_java_hashcode(value: &str) -> i32 {
     let mut hash: i32 = 0;
     for char in value.chars().into_iter() {
@@ -38,4 +40,36 @@ pub fn get_schema_id(fields: &[String]) -> i32 {
             res = res.overflowing_mul(FNV1_PRIME).0;
             res
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_str_hash() {
+        let type_name = "SQL_PUBLIC_BLOCKS_3a20a0eb_23bc_4f20_a461_481ef271ca11";
+        let type_name = type_name.to_lowercase();
+        let expected = -454306776i32;
+        let actual = string_to_java_hashcode(type_name.as_str());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_str_hash2() {
+        let type_name = "SQL_PUBLIC_BLOCKS_c0460810_6cda_4dc3_9198_23853130fa74";
+        let type_name = type_name.to_lowercase();
+        let expected = -1154517926;
+        let actual = string_to_java_hashcode(type_name.as_str());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_str_hash3() {
+        let type_name = "SQL_PUBLIC_BLOCKS_1d77a9c4_7ec7_413b_b21b_a5813f3aeb3d";
+        let type_name = type_name.to_lowercase();
+        let expected = -2076516619;
+        let actual = string_to_java_hashcode(type_name.as_str());
+        assert_eq!(actual, expected);
+    }
 }

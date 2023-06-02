@@ -1,6 +1,6 @@
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{
-    read_i32, read_string, read_u16, read_u8, write_i16, write_i32, write_i64, write_i8,
+    read_i32, read_i64, read_string, read_u16, read_u8, write_i16, write_i32, write_i64, write_i8,
     write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
     FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA,
 };
@@ -90,6 +90,11 @@ impl ReadableType for ComplexObject {
                 let field = IgniteValue::String(str);
                 me.values.push(field);
             }
+            TypeCode::Long => {
+                let val = read_i64(reader).unwrap();
+                let field = IgniteValue::Long(val);
+                me.values.push(field);
+            }
             TypeCode::ComplexObj => {
                 // read header minus type code
                 let mut partial_header = vec![0u8; COMPLEX_OBJ_HEADER_LEN as usize - 1];
@@ -105,11 +110,12 @@ impl ReadableType for ComplexObject {
                 let _type_code = read_u8(&mut header)?; // offset 0
                 assert_eq!(read_u8(&mut header)?, 1, "Only version 1 supported"); // version
                 let flags = read_u16(&mut header)?; // offset 2
-                let _type_id = read_i32(&mut header)?; // offset 4
+                let type_id = read_i32(&mut header)?; // offset 4
                 let _hash_code = read_i32(&mut header)?; // offset 8
                 let object_len = read_i32(&mut header)? as usize; // offset 12
                 let _schema_id = read_i32(&mut header)?; // offset 16
                 let field_indexes_offset = read_i32(&mut header)? as usize; // offset 20
+                println!("type_id={type_id}");
 
                 // compute stuff we need to read body
                 let (one, two) = (
@@ -187,6 +193,7 @@ impl WritableType for ComplexObject {
         let type_name = self.schema.type_name.to_lowercase();
         let type_id = string_to_java_hashcode(type_name.as_str());
         let schema_id = get_schema_id(&self.schema.fields);
+        println!("schema_id={schema_id} type_id={type_id}");
         write_u8(writer, TypeCode::ComplexObj as u8)?; // complex type - offset 0
         write_u8(writer, 1)?; // version - offset 1
         write_u16(writer, flags)?; // flags - 2 - TODO: > 1 byte offsets
