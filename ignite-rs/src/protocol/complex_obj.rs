@@ -156,7 +156,7 @@ impl ReadableType for ComplexObject {
                 }
                 // the remainder of bytes are offsets to fields which we have already read
             }
-            _ => todo!("Unsupported type code"),
+            _ => todo!("Unsupported type code: {:?}", type_code),
         }
         Ok(Some(me))
     }
@@ -185,13 +185,15 @@ impl WritableType for ComplexObject {
         // https://apacheignite.readme.io/docs/binary-client-protocol-data-format#complex-object
         let flags = FLAG_COMPACT_FOOTER | offset_sz_flags | FLAG_HAS_SCHEMA | FLAG_USER_TYPE;
         let type_name = self.schema.type_name.to_lowercase();
+        let type_id = string_to_java_hashcode(type_name.as_str());
+        let schema_id = get_schema_id(&self.schema.fields);
         write_u8(writer, TypeCode::ComplexObj as u8)?; // complex type - offset 0
         write_u8(writer, 1)?; // version - offset 1
         write_u16(writer, flags)?; // flags - 2 - TODO: > 1 byte offsets
-        write_i32(writer, string_to_java_hashcode(type_name.as_str()))?; // type_id - offset 4
+        write_i32(writer, type_id)?; // type_id - offset 4
         write_i32(writer, bytes_to_java_hashcode(fields.as_slice()))?; // hash - offset 8
         write_i32(writer, self.size() as i32)?; // size - offset 12
-        write_i32(writer, get_schema_id(&self.schema.fields))?; // schema_id - offset 16
+        write_i32(writer, schema_id)?; // schema_id - offset 16
         write_i32(writer, COMPLEX_OBJ_HEADER_LEN + fields.len() as i32)?; // offset to the offset to field data - 20
         writer.write_all(&fields)?; // field data - offset 24
         for offset in offsets {

@@ -175,7 +175,7 @@ impl Connection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::complex_obj::ComplexObject;
+    use crate::protocol::complex_obj::{ComplexObject, ComplexObjectSchema, IgniteValue};
     use crate::{new_client, Ignite};
 
     #[test]
@@ -189,6 +189,66 @@ mod tests {
         let cache = ignite
             .get_or_create_cache::<i64, ComplexObject>(table_name)
             .unwrap();
+        let rows = cache.query_scan(100).unwrap();
+        assert_eq!(rows.len(), 1);
+    }
+
+    #[test]
+    fn test_crud() {
+        let config = ClientConfig::new("localhost:10800");
+        let mut ignite = new_client(config).unwrap();
+        let table_name = "SQL_PUBLIC_BLOCKS";
+        let cfg = ignite.get_cache_config(table_name).unwrap();
+        let entity = cfg.query_entities.unwrap().last().unwrap().clone();
+        println!("{}", entity.value_type);
+        let val_schema = ComplexObjectSchema {
+            type_name: entity.value_type,
+            fields: vec![
+                "BLOCK_HASH".to_string(),
+                "TIME_STAMP".to_string(),
+                "MINER".to_string(),
+                "PARENT_HASH".to_string(),
+                "REWARD".to_string(),
+                "SIZE_".to_string(),
+                "GAS_USED".to_string(),
+                "GAS_LIMIT".to_string(),
+                "BASE_FEE_PER_GAS".to_string(),
+                "TRANSACTION_COUNT".to_string(),
+            ],
+        };
+        let val = ComplexObject {
+            schema: Arc::new(val_schema),
+            values: vec![
+                IgniteValue::String(
+                    "0x5b586757c36eb4c94f69015f3cb6d3d5b51c6dbace6d37cbf34d367b0171c94a"
+                        .to_string(),
+                ),
+                IgniteValue::String("2022-01-01 00:00:20".to_string()),
+                IgniteValue::String("0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8".to_string()),
+                IgniteValue::String(
+                    "0x32aed0cf316d17f0d7c9abeccb9811724aa58c09ce531f61f3865781c83e23c2"
+                        .to_string(),
+                ),
+                IgniteValue::String("2.320513110617991e+18".to_string()),
+                IgniteValue::Int(134772),
+                IgniteValue::Int(30013255),
+                IgniteValue::Int(30016997),
+                IgniteValue::String("61584343729".to_string()),
+                IgniteValue::Int(479),
+            ],
+        };
+        let key = ComplexObject {
+            schema: Arc::new(ComplexObjectSchema {
+                type_name: "java.lang.Long".to_string(),
+                fields: vec![],
+            }),
+            values: vec![IgniteValue::Long(7)],
+        };
+
+        let cache = ignite
+            .get_or_create_cache::<ComplexObject, ComplexObject>(table_name)
+            .unwrap();
+        cache.put(&key, &val).unwrap();
         let rows = cache.query_scan(100).unwrap();
         assert_eq!(rows.len(), 1);
     }
