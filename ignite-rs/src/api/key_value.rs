@@ -2,7 +2,7 @@ use crate::cache::CachePeekMode;
 use crate::error::IgniteResult;
 use crate::protocol::{
     read_bool, read_i32, read_i64, write_bool, write_i32, write_i64, write_i8, write_null,
-    write_string, write_u8,
+    write_string, write_u8, TypeCode,
 };
 use crate::{ReadableReq, ReadableType, WritableType, WriteableReq};
 
@@ -125,7 +125,9 @@ impl<'a, K: WritableType, V: WritableType> WriteableReq for CacheReq<'a, K, V> {
             CacheReq::QueryScanSql(id, pg_sz, table, sql) => {
                 write_i32(writer, *id)?;
                 write_u8(writer, 0)?; // Use 0. This field is deprecated and will be removed in the future.
+                write_u8(writer, TypeCode::String as u8)?;
                 write_string(writer, table.as_str())?;
+                write_u8(writer, TypeCode::String as u8)?;
                 write_string(writer, sql.as_str())?;
                 write_i32(writer, 0)?; // Argument count.
                                        /*
@@ -147,6 +149,7 @@ impl<'a, K: WritableType, V: WritableType> WriteableReq for CacheReq<'a, K, V> {
                 write_null(writer)?; // Schema for the query; can be null, in which case default PUBLIC schema will be used.
                 write_i32(writer, *pg_sz)?; // Query cursor page size.
                 write_i32(writer, *pg_sz)?; // Max rows.
+                write_u8(writer, TypeCode::String as u8)?;
                 write_string(writer, sql.as_str())?;
                 write_i32(writer, 0)?; // Argument count.
                                        /*
@@ -225,8 +228,8 @@ impl<'a, K: WritableType, V: WritableType> WriteableReq for CacheReq<'a, K, V> {
             }
             CacheReq::QueryScanSql(_, _, table, sql) => {
                 CACHE_ID_MAGIC_BYTE_SIZE
-                    + size_of::<i32>() + table.len()
-                    + size_of::<i32>() + sql.len()
+                    + size_of::<i32>() + table.len() + size_of::<u8>()
+                    + size_of::<i32>() + sql.len() + size_of::<u8>()
                     + size_of::<i32>() // Query argument count.
                     + size_of::<u8>() // Distributed joins flag
                     + size_of::<u8>() // Local query flag
@@ -239,7 +242,7 @@ impl<'a, K: WritableType, V: WritableType> WriteableReq for CacheReq<'a, K, V> {
                     + size_of::<u8>() // Null schema
                     + size_of::<i32>() // Cursor page size
                     + size_of::<i32>() // Max rows.
-                    + size_of::<i32>() + sql.len()
+                    + size_of::<i32>() + sql.len() + size_of::<u8>()
                     + size_of::<i32>() // Argument count.
                     + size_of::<u8>() // Statement type.
                     + size_of::<u8>() // Distributed joins flag

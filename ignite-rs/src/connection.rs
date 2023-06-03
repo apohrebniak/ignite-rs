@@ -198,12 +198,13 @@ mod tests {
         let config = ClientConfig::new("localhost:10800");
         let mut ignite = new_client(config).unwrap();
         let table_name = "SQL_PUBLIC_BLOCKS";
-        println!("cache names: {:?}", ignite.get_cache_names());
+        // println!("cache names: {:?}", ignite.get_cache_names());
         let cfg = ignite.get_cache_config(table_name).unwrap();
         let entity = cfg.query_entities.unwrap().last().unwrap().clone();
+        let type_name = entity.value_type.split(".").last().unwrap();
         println!("value_type={}", entity.value_type);
         let val_schema = ComplexObjectSchema {
-            type_name: entity.value_type,
+            type_name: entity.value_type.clone(),
             fields: vec![
                 "BLOCK_HASH".to_string(),
                 "TIME_STAMP".to_string(),
@@ -249,8 +250,11 @@ mod tests {
         let cache = ignite
             .get_or_create_cache::<ComplexObject, ComplexObject>(table_name)
             .unwrap();
-        cache.put(&key, &val).unwrap();
-        let rows = cache.query_scan(100).unwrap();
+        // cache.put(&key, &val).unwrap();
+        // let rows = cache.query_scan(100).unwrap();
+        let rows = cache
+            .query_scan_sql(100, type_name, "block_number < 7")
+            .unwrap();
         assert_eq!(rows.len(), 1);
     }
 }

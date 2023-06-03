@@ -308,7 +308,7 @@ impl<K: WritableType + ReadableType, V: WritableType + ReadableType> Cache<K, V>
     pub fn query_scan_sql(
         &self,
         page_size: i32,
-        table: &str,
+        type_name: &str,
         sql: &str,
     ) -> IgniteResult<Vec<(Option<K>, Option<V>)>> {
         self.conn
@@ -317,7 +317,7 @@ impl<K: WritableType + ReadableType, V: WritableType + ReadableType> Cache<K, V>
                 CacheReq::QueryScanSql::<K, V>(
                     self.id,
                     page_size,
-                    table.to_string(),
+                    type_name.to_string(),
                     sql.to_string(),
                 ),
             )
