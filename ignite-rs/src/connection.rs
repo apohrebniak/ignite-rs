@@ -253,7 +253,7 @@ mod tests {
         // cache.put(&key, &val).unwrap();
         // let rows = cache.query_scan(100).unwrap();
         let rows = cache
-            .query_scan_sql(100, type_name, "block_number < 7")
+            .query_scan_sql(100, type_name, "order by block_number desc limit 1")
             .unwrap();
         assert_eq!(rows.len(), 1);
     }
