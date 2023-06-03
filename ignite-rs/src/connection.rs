@@ -198,10 +198,10 @@ mod tests {
         let config = ClientConfig::new("localhost:10800");
         let mut ignite = new_client(config).unwrap();
         let table_name = "SQL_PUBLIC_BLOCKS";
-        println!("v={:?}", ignite.get_cache_names());
+        println!("cache names: {:?}", ignite.get_cache_names());
         let cfg = ignite.get_cache_config(table_name).unwrap();
         let entity = cfg.query_entities.unwrap().last().unwrap().clone();
-        println!("{}", entity.value_type);
+        println!("value_type={}", entity.value_type);
         let val_schema = ComplexObjectSchema {
             type_name: entity.value_type,
             fields: vec![

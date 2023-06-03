@@ -304,6 +304,26 @@ impl<K: WritableType + ReadableType, V: WritableType + ReadableType> Cache<K, V>
             .map(|resp: QueryScanResp<K, V>| resp.val)
     }
 
+    /// https://ignite.apache.org/docs/latest/binary-client-protocol/sql-and-scan-queries#op_query_sql
+    pub fn query_scan_sql(
+        &self,
+        page_size: i32,
+        table: &str,
+        sql: &str,
+    ) -> IgniteResult<Vec<(Option<K>, Option<V>)>> {
+        self.conn
+            .send_and_read(
+                OpCode::QuerySql,
+                CacheReq::QueryScanSql::<K, V>(
+                    self.id,
+                    page_size,
+                    table.to_string(),
+                    sql.to_string(),
+                ),
+            )
+            .map(|resp: QueryScanResp<K, V>| resp.val)
+    }
+
     pub fn query_scan_dyn(
         &self,
         page_size: i32,
