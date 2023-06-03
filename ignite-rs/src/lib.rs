@@ -1,7 +1,7 @@
 use crate::api::cache_config::{
     CacheCreateWithConfigReq, CacheCreateWithNameReq, CacheDestroyReq, CacheGetConfigReq,
     CacheGetConfigResp, CacheGetNamesReq, CacheGetNamesResp, CacheGetOrCreateWithConfigReq,
-    CacheGetOrCreateWithNameReq,
+    CacheGetOrCreateWithNameReq, ClientIntResp, TxnEndReq, TxnStartReq,
 };
 use crate::api::OpCode;
 
@@ -128,6 +128,12 @@ pub fn new_client(conf: ClientConfig) -> IgniteResult<Client> {
 }
 
 pub trait Ignite {
+    /// Start a transaction
+    fn start_transaction(&mut self) -> IgniteResult<i32>;
+
+    /// End a transaction
+    fn end_transaction(&mut self, tx_id: i32, commit: bool) -> IgniteResult<()>;
+
     /// Returns names of caches currently available in cluster
     fn get_cache_names(&mut self) -> IgniteResult<Vec<String>>;
     /// Creates a new cache with provided name and default configuration.
@@ -216,6 +222,16 @@ impl Ignite for Client {
             cfg,
             self.conn.clone(),
         ))
+    }
+
+    fn start_transaction(&mut self) -> IgniteResult<i32> {
+        let resp: ClientIntResp = self.conn.send_and_read(OpCode::TxStart, TxnStartReq {})?;
+        Ok(resp.value)
+    }
+
+    fn end_transaction(&mut self, tx_id: i32, commit: bool) -> IgniteResult<()> {
+        self.conn.send(OpCode::TxEnd, TxnEndReq { tx_id, commit })?;
+        Ok(())
     }
 
     fn get_or_create_cache<K: WritableType + ReadableType, V: WritableType + ReadableType>(

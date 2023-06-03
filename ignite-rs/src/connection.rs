@@ -126,15 +126,16 @@ impl Connection {
     ) -> io::Result<()> {
         write_i32(writer, payload_len as i32 + REQ_HEADER_SIZE_BYTES)?;
         write_i16(writer, op_code)?;
-        write_i64(writer, 0)?;
+        write_i64(writer, 0)?; // Request id
         Ok(())
     }
 
     /// Reads standard response header
     fn read_resp_header(reader: &mut impl Read) -> IgniteResult<Flag> {
-        let _ = read_i32(reader)?;
-        let _ = read_i64(reader)?;
-        match read_i32(reader)? {
+        let _length = read_i32(reader)?;
+        let _req_id = read_i64(reader)?;
+        let status = read_i32(reader)?;
+        match status {
             0 => Ok(Success),
             _ => {
                 let err_msg = String::read(reader)?;
@@ -247,10 +248,13 @@ mod tests {
             values: vec![IgniteValue::Long(7)],
         };
 
+        let tx_id = ignite.start_transaction().unwrap();
         let cache = ignite
             .get_or_create_cache::<ComplexObject, ComplexObject>(table_name)
             .unwrap();
-        // cache.put(&key, &val).unwrap();
+        cache.put(&key, &val).unwrap();
+        ignite.end_transaction(tx_id, false).unwrap();
+
         // let rows = cache.query_scan(100).unwrap();
         let rows = cache
             .query_scan_sql(100, type_name, "order by block_number desc limit 1")

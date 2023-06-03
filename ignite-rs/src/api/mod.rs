@@ -37,6 +37,8 @@ pub(crate) enum OpCode {
     QueryScan = 2000,
     QuerySql = 2002,
     QuerySqlFields = 2004,
+    TxStart = 4000,
+    TxEnd = 4001,
 }
 
 impl Into<i16> for OpCode {

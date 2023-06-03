@@ -3,13 +3,67 @@ use std::io::{Read, Write};
 use crate::cache::CacheConfiguration;
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::cache_config::{get_cache_configuration_bytes, read_cache_configuration};
-use crate::protocol::{read_i32, write_i32, write_string_type_code, write_u8};
+use crate::protocol::{
+    read_i32, write_bool, write_i32, write_i64, write_null, write_string_type_code, write_u8,
+};
 use crate::utils::string_to_java_hashcode;
 use crate::{ReadableReq, ReadableType, WriteableReq};
 use std::io;
+use std::mem::size_of;
 
 // https://apacheignite.readme.io/docs/binary-client-protocol-cache-configuration-operations#op_cache_get_configuration
 const MAGIC_FLAG: u8 = 0;
+
+/// Transaction End 4000
+pub(crate) struct TxnEndReq {
+    pub tx_id: i32,
+    pub commit: bool,
+}
+
+impl WriteableReq for TxnEndReq {
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_i32(writer, self.tx_id)?;
+        write_bool(writer, self.commit)?;
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        size_of::<i32>() // txId
+            + size_of::<u8>() // committed flag
+    }
+}
+
+pub(crate) struct ClientIntResp {
+    pub(crate) value: i32,
+}
+
+impl ReadableReq for ClientIntResp {
+    fn read(reader: &mut impl Read) -> IgniteResult<Self> {
+        let value = read_i32(reader)?;
+
+        Ok(ClientIntResp { value })
+    }
+}
+
+/// Transaction Start 4000
+pub(crate) struct TxnStartReq {}
+
+impl WriteableReq for TxnStartReq {
+    fn write(&self, writer: &mut dyn Write) -> io::Result<()> {
+        write_u8(writer, 0)?; // concurrency OPTIMISTIC=0, PESSIMISTIC=1
+        write_u8(writer, 0)?; // isolation READ_COMMITTED=0, REPEATABLE_READ=1, SERIALIZABLE=2
+        write_i64(writer, 10000)?; // Timeout
+        write_null(writer)?; // label
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        size_of::<u8>() // concurrency OPTIMISTIC=0, PESSIMISTIC=1
+            + size_of::<u8>() // isolation READ_COMMITTED=0, REPEATABLE_READ=1, SERIALIZABLE=2
+            + size_of::<i64>() // Timeout
+            + size_of::<u8>() // label = null
+    }
+}
 
 /// Cache Get Names 1050
 pub(crate) struct CacheGetNamesReq {}
