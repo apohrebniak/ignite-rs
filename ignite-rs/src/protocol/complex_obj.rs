@@ -16,6 +16,8 @@ pub enum IgniteValue {
     String(String),
     Long(i64),
     Int(i32),
+    Timestamp(i64, i32), // milliseconds since 1 Jan 1970 UTC, Nanosecond fraction of a millisecond.
+    Decimal(i32, Vec<u8>), // scale, big int value in bytes
 }
 
 // https://apacheignite.readme.io/docs/binary-client-protocol-data-format#schema
@@ -54,6 +56,17 @@ impl ComplexObject {
                 IgniteValue::Int(val) => {
                     write_u8(&mut values, TypeCode::Int as u8)?;
                     write_i32(&mut values, *val)?;
+                }
+                IgniteValue::Timestamp(big, little) => {
+                    write_u8(&mut values, TypeCode::Timestamp as u8)?;
+                    write_i64(&mut values, *big)?;
+                    write_i32(&mut values, *little)?;
+                }
+                IgniteValue::Decimal(scale, data) => {
+                    write_u8(&mut values, TypeCode::Decimal as u8)?;
+                    write_i32(&mut values, *scale)?;
+                    write_i32(&mut values, data.len() as i32)?;
+                    values.write_all(data)?;
                 }
             }
         }
@@ -151,6 +164,18 @@ impl ReadableType for ComplexObject {
                     let val = match field_type {
                         TypeCode::String => IgniteValue::String(read_string(&mut remainder)?),
                         TypeCode::Int => IgniteValue::Int(read_i32(&mut remainder)?),
+                        TypeCode::Timestamp => {
+                            let big = read_i64(&mut remainder)?;
+                            let little = read_i32(&mut remainder)?;
+                            IgniteValue::Timestamp(big, little)
+                        }
+                        TypeCode::Decimal => {
+                            let scale = read_i32(&mut remainder)?;
+                            let len = read_i32(&mut remainder)?;
+                            let mut buf = vec![0; len as usize];
+                            remainder.read_exact(&mut buf)?;
+                            IgniteValue::Decimal(scale, buf)
+                        }
                         _ => {
                             let msg = format!("Unknown type: {:?}", field_type);
                             Err(IgniteError::from(msg.as_str()))?

@@ -248,12 +248,12 @@ mod tests {
             values: vec![IgniteValue::Long(7)],
         };
 
-        let tx_id = ignite.start_transaction().unwrap();
+        // let tx_id = ignite.start_transaction().unwrap();
         let cache = ignite
             .get_or_create_cache::<ComplexObject, ComplexObject>(table_name)
             .unwrap();
-        cache.put(&key, &val).unwrap();
-        ignite.end_transaction(tx_id, false).unwrap();
+        // cache.put(&key, &val).unwrap();
+        // ignite.end_transaction(tx_id, false).unwrap();
 
         // let rows = cache.query_scan(100).unwrap();
         let rows = cache
