@@ -178,6 +178,7 @@ mod tests {
     use super::*;
     use crate::protocol::complex_obj::{ComplexObject, ComplexObjectSchema, IgniteValue};
     use crate::{new_client, Ignite};
+    use num_bigint::BigInt;
 
     #[test]
     fn test_read() {
@@ -198,48 +199,44 @@ mod tests {
     fn test_crud() {
         let config = ClientConfig::new("localhost:10800");
         let mut ignite = new_client(config).unwrap();
-        let table_name = "SQL_PUBLIC_BLOCKS";
+        let table_name = "SQL_PUBLIC_TRANSACTION_DETAIL";
         // println!("cache names: {:?}", ignite.get_cache_names());
         let cfg = ignite.get_cache_config(table_name).unwrap();
         let entity = cfg.query_entities.unwrap().last().unwrap().clone();
         let (ks, vs) = ComplexObjectSchema::infer_schemas(&entity).unwrap();
-        println!("vs={vs:?}");
+        println!("ks={ks:?} vs={vs:?}");
         let type_name = entity.value_type.split(".").last().unwrap();
         println!("value_type={}", entity.value_type);
-        let val = ComplexObject {
-            schema: vs,
-            values: vec![
-                IgniteValue::String(
-                    "0x5b586757c36eb4c94f69015f3cb6d3d5b51c6dbace6d37cbf34d367b0171c94a"
-                        .to_string(),
-                ),
-                IgniteValue::String("2022-01-01 00:00:20".to_string()),
-                IgniteValue::String("0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8".to_string()),
-                IgniteValue::String(
-                    "0x32aed0cf316d17f0d7c9abeccb9811724aa58c09ce531f61f3865781c83e23c2"
-                        .to_string(),
-                ),
-                IgniteValue::String("2.320513110617991e+18".to_string()),
-                IgniteValue::Int(134772),
-                IgniteValue::Int(30013255),
-                IgniteValue::Int(30016997),
-                IgniteValue::String("61584343729".to_string()),
-                IgniteValue::Int(479),
-            ],
-        };
         let key = ComplexObject {
-            schema: Arc::new(ComplexObjectSchema {
-                type_name: "java.lang.Long".to_string(),
-                fields: vec![],
-            }),
-            values: vec![IgniteValue::Long(7)],
+            schema: ks.clone(),
+            values: vec![IgniteValue::String(
+                "0x4201016f9db4a01ff8478ebe1c58e5dccc5e8e56e74775202eb98a55d29eca87".to_string(),
+            )],
+        };
+        let val = ComplexObject {
+            schema: vs.clone(),
+            values: vec![
+                IgniteValue::String("0x1".to_string()), // CHAIN_ID
+                IgniteValue::String("".to_string()),    // FUNCTION_NAME
+                IgniteValue::String("0x".to_string()),  // METHOD_ID
+                IgniteValue::Int(0i32),                 // TRANSACTION_INDEX
+                IgniteValue::String("".to_string()),    // RECEIPT_CONTRACT_ADDRESS
+                IgniteValue::String("0x2".to_string()), // TYPE
+                IgniteValue::Decimal(0, BigInt::from(62584343729i128).to_signed_bytes_be()), // GAS_PRICE
+                IgniteValue::Int(39646643i32), // NONCE
+                IgniteValue::Int(21000i32),    // RECEIPT_GAS_USED
+                IgniteValue::Decimal(0, BigInt::from(124243365002i128).to_signed_bytes_be()), // MAX_FEE_PER_GAS
+                IgniteValue::Decimal(0, BigInt::from(1000000000i128).to_signed_bytes_be()), // MAX_PRIORITY_FEE_PER_GAS
+                IgniteValue::Decimal(0, BigInt::from(62584343729i128).to_signed_bytes_be()), // RECEIPT_EFFECTIVE_GAS_PRICE
+                IgniteValue::Short(0i16), // LOGS_COUNT
+            ],
         };
 
         // let tx_id = ignite.start_transaction().unwrap();
         let cache = ignite
             .get_or_create_cache::<ComplexObject, ComplexObject>(table_name)
             .unwrap();
-        // cache.put(&key, &val).unwrap();
+        cache.put(&key, &val).unwrap();
         // ignite.end_transaction(tx_id, false).unwrap();
 
         // let rows = cache.query_scan(100).unwrap();

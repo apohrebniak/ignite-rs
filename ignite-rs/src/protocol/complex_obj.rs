@@ -1,6 +1,10 @@
 use crate::cache::{QueryEntity, QueryField};
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::{read_i32, read_i64, read_string, read_u16, read_u8, write_i32, write_i64, write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER, FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA, write_i16, read_i16};
+use crate::protocol::{
+    read_i16, read_i32, read_i64, read_string, read_u16, read_u8, write_i16, write_i32, write_i64,
+    write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
+    FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA,
+};
 use crate::utils::{bytes_to_java_hashcode, get_schema_id, string_to_java_hashcode};
 use crate::{ReadableType, WritableType};
 use std::convert::TryFrom;
@@ -221,6 +225,7 @@ impl ReadableType for ComplexObject {
 
 impl WritableType for ComplexObject {
     fn write(&self, writer: &mut dyn Write) -> std::io::Result<()> {
+        // Handle primitives as ComplexObjects for simplicity
         if self.schema.type_name == "java.lang.Long" {
             let val = self
                 .values
@@ -232,6 +237,19 @@ impl WritableType for ComplexObject {
             };
             write_u8(writer, TypeCode::Long as u8)?;
             write_i64(writer, *val)?;
+            return Ok(());
+        }
+        if self.schema.type_name == "java.lang.String" {
+            let val = self
+                .values
+                .last()
+                .ok_or_else(|| std::io::Error::new(ErrorKind::Other, "No values"))?;
+            let val = match val {
+                IgniteValue::String(val) => val,
+                _ => Err(std::io::Error::new(ErrorKind::Other, "Mismatched types!"))?,
+            };
+            write_u8(writer, TypeCode::String as u8)?;
+            write_string(writer, val)?;
             return Ok(());
         }
 
@@ -260,6 +278,14 @@ impl WritableType for ComplexObject {
     fn size(&self) -> usize {
         if self.schema.type_name == "java.lang.Long" {
             return size_of::<i64>() + 1;
+        }
+        if self.schema.type_name == "java.lang.String" {
+            let val = self.values.last().expect("No values!");
+            let val = match val {
+                IgniteValue::String(val) => val,
+                _ => panic!("Mismatched types!"),
+            };
+            return size_of::<i32>() + 1 + val.len();
         }
         let (values, schema) = self.get_data().expect("Can't get size!");
         values.len() + schema.len() + COMPLEX_OBJ_HEADER_LEN as usize

@@ -15,6 +15,7 @@ categories = ["database"]
 [dependencies]
 bufstream = "0.1.4"
 hex-literal = "0.4.1"
+num-bigint = "0.4.3"
 
 [dependencies.rustls]
 version = "0.17.0"
