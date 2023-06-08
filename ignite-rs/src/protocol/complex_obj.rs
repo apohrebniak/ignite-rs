@@ -231,7 +231,6 @@ impl WritableType for ComplexObject {
         let type_name = self.schema.type_name.to_lowercase();
         let type_id = string_to_java_hashcode(type_name.as_str());
         let schema_id = get_schema_id(&self.schema.fields);
-        println!("wrote type_id={type_id} schema_id={schema_id}");
         write_u8(writer, TypeCode::ComplexObj as u8)?; // complex type - offset 0
         write_u8(writer, 1)?; // version - offset 1
         write_u16(writer, flags)?; // flags - 2 - TODO: > 1 byte offsets
