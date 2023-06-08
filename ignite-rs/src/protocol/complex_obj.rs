@@ -1,10 +1,6 @@
 use crate::cache::{QueryEntity, QueryField};
 use crate::error::{IgniteError, IgniteResult};
-use crate::protocol::{
-    read_i32, read_i64, read_string, read_u16, read_u8, write_i32, write_i64, write_string,
-    write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER, FLAG_HAS_SCHEMA,
-    FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA,
-};
+use crate::protocol::{read_i32, read_i64, read_string, read_u16, read_u8, write_i32, write_i64, write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER, FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA, write_i16, read_i16};
 use crate::utils::{bytes_to_java_hashcode, get_schema_id, string_to_java_hashcode};
 use crate::{ReadableType, WritableType};
 use std::convert::TryFrom;
@@ -17,6 +13,7 @@ pub enum IgniteValue {
     String(String),
     Long(i64),
     Int(i32),
+    Short(i16),
     Timestamp(i64, i32), // milliseconds since 1 Jan 1970 UTC, Nanosecond fraction of a millisecond.
     Decimal(i32, Vec<u8>), // scale, big int value in bytes
 }
@@ -74,6 +71,10 @@ impl ComplexObject {
                     write_u8(&mut values, TypeCode::Int as u8)?;
                     write_i32(&mut values, *val)?;
                 }
+                IgniteValue::Short(val) => {
+                    write_u8(&mut values, TypeCode::Short as u8)?;
+                    write_i16(&mut values, *val)?;
+                }
                 IgniteValue::Timestamp(big, little) => {
                     write_u8(&mut values, TypeCode::Timestamp as u8)?;
                     write_i64(&mut values, *big)?;
@@ -125,6 +126,16 @@ impl ReadableType for ComplexObject {
             TypeCode::Long => {
                 let val = read_i64(reader).unwrap();
                 let field = IgniteValue::Long(val);
+                me.values.push(field);
+            }
+            TypeCode::Int => {
+                let val = read_i32(reader).unwrap();
+                let field = IgniteValue::Int(val);
+                me.values.push(field);
+            }
+            TypeCode::Short => {
+                let val = read_i16(reader).unwrap();
+                let field = IgniteValue::Short(val);
                 me.values.push(field);
             }
             TypeCode::ComplexObj => {
