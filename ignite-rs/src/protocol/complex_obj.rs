@@ -25,6 +25,7 @@ pub enum IgniteValue {
 pub enum IgniteType {
     String,
     Long,
+    Short,
     Int,
     Timestamp,
     Decimal(i32, i32), // precision, scale
@@ -394,6 +395,7 @@ impl ComplexObjectSchema {
         for f in qry_fields.iter() {
             let t: IgniteType = match f.type_name.as_str() {
                 "java.lang.Long" => IgniteType::Long,
+                "java.lang.Short" => IgniteType::Short,
                 "java.lang.String" => IgniteType::String,
                 "java.sql.Timestamp" => IgniteType::Timestamp,
                 "java.lang.Integer" => IgniteType::Int,
