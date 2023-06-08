@@ -1,3 +1,4 @@
+use crate::cache::{QueryEntity, QueryField};
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{
     read_i32, read_i64, read_string, read_u16, read_u8, write_i32, write_i64, write_string,
@@ -20,11 +21,26 @@ pub enum IgniteValue {
     Decimal(i32, Vec<u8>), // scale, big int value in bytes
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum IgniteType {
+    String,
+    Long,
+    Int,
+    Timestamp,
+    Decimal(i32, i32), // precision, scale
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct IgniteField {
+    pub name: String,
+    pub r#type: IgniteType,
+}
+
 // https://apacheignite.readme.io/docs/binary-client-protocol-data-format#schema
 #[derive(Debug, PartialEq, Eq)]
 pub struct ComplexObjectSchema {
     pub type_name: String,
-    pub fields: Vec<String>,
+    pub fields: Vec<IgniteField>,
 }
 
 // https://apacheignite.readme.io/docs/binary-client-protocol-data-format#complex-object
@@ -41,7 +57,7 @@ impl ComplexObject {
         for (val, field) in self.values.iter().zip(self.schema.fields.iter()) {
             write_i32(
                 &mut schema,
-                string_to_java_hashcode(field.to_lowercase().as_str()),
+                string_to_java_hashcode(field.name.to_lowercase().as_str()),
             )?;
             write_i32(&mut schema, COMPLEX_OBJ_HEADER_LEN + values.len() as i32)?;
             match val {
@@ -261,18 +277,48 @@ mod tests {
             "18 00 5F 00 77 00 A6 00 ED 00 07 01 0C 01 11 01 16 01 26 01" // offsets to fields
         );
         let schema = ComplexObjectSchema {
-            type_name: type_name.to_string(),
+            type_name: "VT.PUBLIC.BLOCKS-3178274329684762144".to_string(),
             fields: vec![
-                "BLOCK_HASH".to_string(),
-                "TIME_STAMP".to_string(),
-                "MINER".to_string(),
-                "PARENT_HASH".to_string(),
-                "REWARD".to_string(),
-                "SIZE_".to_string(),
-                "GAS_USED".to_string(),
-                "GAS_LIMIT".to_string(),
-                "BASE_FEE_PER_GAS".to_string(),
-                "TRANSACTION_COUNT".to_string(),
+                IgniteField {
+                    name: "BLOCK_HASH".to_string(),
+                    r#type: IgniteType::String,
+                },
+                IgniteField {
+                    name: "TIME_STAMP".to_string(),
+                    r#type: IgniteType::Timestamp,
+                },
+                IgniteField {
+                    name: "MINER".to_string(),
+                    r#type: IgniteType::String,
+                },
+                IgniteField {
+                    name: "PARENT_HASH".to_string(),
+                    r#type: IgniteType::String,
+                },
+                IgniteField {
+                    name: "REWARD".to_string(),
+                    r#type: IgniteType::String,
+                },
+                IgniteField {
+                    name: "SIZE_".to_string(),
+                    r#type: IgniteType::Int,
+                },
+                IgniteField {
+                    name: "GAS_USED".to_string(),
+                    r#type: IgniteType::Int,
+                },
+                IgniteField {
+                    name: "GAS_LIMIT".to_string(),
+                    r#type: IgniteType::Int,
+                },
+                IgniteField {
+                    name: "BASE_FEE_PER_GAS".to_string(),
+                    r#type: IgniteType::Decimal(78, 0),
+                },
+                IgniteField {
+                    name: "TRANSACTION_COUNT".to_string(),
+                    r#type: IgniteType::Int,
+                },
             ],
         };
 
@@ -313,5 +359,56 @@ mod tests {
         let expected_hex = format!("{:02X?}", expected_bytes);
         let actual_hex = format!("{:02X?}", actual_bytes);
         assert_eq!(actual_hex, expected_hex);
+    }
+}
+
+impl ComplexObjectSchema {
+    /// Find the key and value DynamicIgniteTypes for a table.
+    pub fn infer_schemas(
+        entity: &QueryEntity,
+    ) -> IgniteResult<(Arc<ComplexObjectSchema>, Arc<ComplexObjectSchema>)> {
+        let key_fields: Vec<_> = entity
+            .query_fields
+            .iter()
+            .filter(|f| f.key_field || entity.key_field == f.name)
+            .collect();
+        let val_fields: Vec<_> = entity
+            .query_fields
+            .iter()
+            .filter(|f| !f.key_field && entity.key_field != f.name)
+            .collect();
+        let key_fields = Self::convert_fields(&key_fields)?;
+        let val_fields = Self::convert_fields(&val_fields)?;
+        let k = ComplexObjectSchema {
+            type_name: entity.key_type.clone(),
+            fields: key_fields,
+        };
+        let v = ComplexObjectSchema {
+            type_name: entity.value_type.clone(),
+            fields: val_fields,
+        };
+        Ok((Arc::new(k), Arc::new(v)))
+    }
+
+    fn convert_fields(qry_fields: &[&QueryField]) -> IgniteResult<Vec<IgniteField>> {
+        let mut fields = vec![];
+        for f in qry_fields.iter() {
+            let t: IgniteType = match f.type_name.as_str() {
+                "java.lang.Long" => IgniteType::Long,
+                "java.lang.String" => IgniteType::String,
+                "java.sql.Timestamp" => IgniteType::Timestamp,
+                "java.lang.Integer" => IgniteType::Int,
+                "java.math.BigDecimal" => IgniteType::Decimal(f.precision, f.scale),
+                _ => Err(IgniteError::from(
+                    format!("Unknown field type: {}", f.type_name).as_str(),
+                ))?,
+            };
+            let field = IgniteField {
+                name: f.name.to_string(),
+                r#type: t,
+            };
+            fields.push(field);
+        }
+        Ok(fields)
     }
 }

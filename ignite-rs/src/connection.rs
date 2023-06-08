@@ -202,25 +202,12 @@ mod tests {
         // println!("cache names: {:?}", ignite.get_cache_names());
         let cfg = ignite.get_cache_config(table_name).unwrap();
         let entity = cfg.query_entities.unwrap().last().unwrap().clone();
+        let (ks, vs) = ComplexObjectSchema::infer_schemas(&entity).unwrap();
+        println!("vs={vs:?}");
         let type_name = entity.value_type.split(".").last().unwrap();
         println!("value_type={}", entity.value_type);
-        let val_schema = ComplexObjectSchema {
-            type_name: entity.value_type.clone(),
-            fields: vec![
-                "BLOCK_HASH".to_string(),
-                "TIME_STAMP".to_string(),
-                "MINER".to_string(),
-                "PARENT_HASH".to_string(),
-                "REWARD".to_string(),
-                "SIZE_".to_string(),
-                "GAS_USED".to_string(),
-                "GAS_LIMIT".to_string(),
-                "BASE_FEE_PER_GAS".to_string(),
-                "TRANSACTION_COUNT".to_string(),
-            ],
-        };
         let val = ComplexObject {
-            schema: Arc::new(val_schema),
+            schema: vs,
             values: vec![
                 IgniteValue::String(
                     "0x5b586757c36eb4c94f69015f3cb6d3d5b51c6dbace6d37cbf34d367b0171c94a"

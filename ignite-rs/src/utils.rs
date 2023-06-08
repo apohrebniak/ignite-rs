@@ -1,3 +1,5 @@
+use crate::protocol::complex_obj::IgniteField;
+
 /// Converts string into Java-like hash code
 // Note: we do not call lowercase() in here like the docs say
 // because _sometimes_ it needs to be upper case, like in CacheGetConfigReq
@@ -24,10 +26,10 @@ pub const FNV1_OFFSET_BASIS: i32 = 0x811C_9DC5_u32 as i32;
 /// FNV1 hash prime
 pub const FNV1_PRIME: i32 = 0x0100_0193;
 
-pub fn get_schema_id(fields: &[String]) -> i32 {
+pub fn get_schema_id(fields: &[IgniteField]) -> i32 {
     fields
         .iter()
-        .map(|name| string_to_java_hashcode(&name.to_lowercase()))
+        .map(|f| string_to_java_hashcode(&f.name.to_lowercase()))
         .fold(FNV1_OFFSET_BASIS, |acc, field_id| {
             let mut res = acc;
             res ^= field_id & 0xFF;
