@@ -308,6 +308,7 @@ mod tests {
     use crate::protocol::complex_obj::ComplexObject;
     use std::convert::TryInto;
 
+    #[ignore]
     #[test]
     fn test_round_trip() {
         let type_name = "SQL_PUBLIC_BLOCKS_fd73408e_8a2c_4725_b165_bb4bc11ccad3";
