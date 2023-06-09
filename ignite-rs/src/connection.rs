@@ -180,6 +180,7 @@ mod tests {
     use crate::{new_client, Ignite};
     use num_bigint::BigInt;
 
+    #[ignore]
     #[test]
     fn test_read() {
         let config = ClientConfig::new("localhost:10800");
@@ -195,6 +196,7 @@ mod tests {
         assert_eq!(rows.len(), 1);
     }
 
+    #[ignore]
     #[test]
     fn test_crud() {
         let config = ClientConfig::new("localhost:10800");
