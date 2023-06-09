@@ -199,7 +199,7 @@ mod tests {
     fn test_crud() {
         let config = ClientConfig::new("localhost:10800");
         let mut ignite = new_client(config).unwrap();
-        let table_name = "SQL_PUBLIC_TRANSACTION_DETAIL";
+        let table_name = "SQL_PUBLIC_BOOL_TEST";
         // println!("cache names: {:?}", ignite.get_cache_names());
         let cfg = ignite.get_cache_config(table_name).unwrap();
         let entity = cfg.query_entities.unwrap().last().unwrap().clone();
@@ -209,27 +209,11 @@ mod tests {
         println!("value_type={}", entity.value_type);
         let key = ComplexObject {
             schema: ks.clone(),
-            values: vec![IgniteValue::String(
-                "0x4201016f9db4a01ff8478ebe1c58e5dccc5e8e56e74775202eb98a55d29eca87".to_string(),
-            )],
+            values: vec![IgniteValue::Long(1)],
         };
         let val = ComplexObject {
             schema: vs.clone(),
-            values: vec![
-                IgniteValue::String("0x1".to_string()), // CHAIN_ID
-                IgniteValue::String("".to_string()),    // FUNCTION_NAME
-                IgniteValue::String("0x".to_string()),  // METHOD_ID
-                IgniteValue::Int(0i32),                 // TRANSACTION_INDEX
-                IgniteValue::String("".to_string()),    // RECEIPT_CONTRACT_ADDRESS
-                IgniteValue::String("0x2".to_string()), // TYPE
-                IgniteValue::Decimal(0, BigInt::from(62584343729i128).to_signed_bytes_be()), // GAS_PRICE
-                IgniteValue::Int(39646643i32), // NONCE
-                IgniteValue::Int(21000i32),    // RECEIPT_GAS_USED
-                IgniteValue::Decimal(0, BigInt::from(124243365002i128).to_signed_bytes_be()), // MAX_FEE_PER_GAS
-                IgniteValue::Decimal(0, BigInt::from(1000000000i128).to_signed_bytes_be()), // MAX_PRIORITY_FEE_PER_GAS
-                IgniteValue::Decimal(0, BigInt::from(62584343729i128).to_signed_bytes_be()), // RECEIPT_EFFECTIVE_GAS_PRICE
-                IgniteValue::Short(0i16), // LOGS_COUNT
-            ],
+            values: vec![IgniteValue::Bool(true)],
         };
 
         // let tx_id = ignite.start_transaction().unwrap();
@@ -239,10 +223,10 @@ mod tests {
         cache.put(&key, &val).unwrap();
         // ignite.end_transaction(tx_id, false).unwrap();
 
-        // let rows = cache.query_scan(100).unwrap();
-        let rows = cache
-            .query_scan_sql(100, type_name, "order by block_number desc limit 1")
-            .unwrap();
+        let rows = cache.query_scan(100).unwrap();
+        // let rows = cache
+        //     .query_scan_sql(100, type_name, "order by block_number desc limit 1")
+        //     .unwrap();
         assert_eq!(rows.len(), 1);
     }
 }

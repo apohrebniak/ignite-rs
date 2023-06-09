@@ -1,9 +1,10 @@
 use crate::cache::{QueryEntity, QueryField};
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{
-    read_i16, read_i32, read_i64, read_string, read_u16, read_u8, write_i16, write_i32, write_i64,
-    write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN, FLAG_COMPACT_FOOTER,
-    FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES, FLAG_USER_TYPE, HAS_RAW_DATA,
+    read_bool, read_i16, read_i32, read_i64, read_string, read_u16, read_u8, write_i16, write_i32,
+    write_i64, write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN,
+    FLAG_COMPACT_FOOTER, FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES,
+    FLAG_USER_TYPE, HAS_RAW_DATA,
 };
 use crate::utils::{bytes_to_java_hashcode, get_schema_id, string_to_java_hashcode};
 use crate::{ReadableType, WritableType};
@@ -18,6 +19,7 @@ pub enum IgniteValue {
     Long(i64),
     Int(i32),
     Short(i16),
+    Bool(bool),
     Timestamp(i64, i32), // milliseconds since 1 Jan 1970 UTC, Nanosecond fraction of a millisecond.
     Decimal(i32, Vec<u8>), // scale, big int value in bytes
 }
@@ -26,8 +28,9 @@ pub enum IgniteValue {
 pub enum IgniteType {
     String,
     Long,
-    Short,
     Int,
+    Short,
+    Bool,
     Timestamp,
     Decimal(i32, i32), // precision, scale
 }
@@ -78,6 +81,10 @@ impl ComplexObject {
                 IgniteValue::Short(val) => {
                     write_u8(&mut values, TypeCode::Short as u8)?;
                     write_i16(&mut values, *val)?;
+                }
+                IgniteValue::Bool(val) => {
+                    write_u8(&mut values, TypeCode::Bool as u8)?;
+                    write_u8(&mut values, *val as u8)?;
                 }
                 IgniteValue::Timestamp(big, little) => {
                     write_u8(&mut values, TypeCode::Timestamp as u8)?;
@@ -195,7 +202,10 @@ impl ReadableType for ComplexObject {
                     let field_type = TypeCode::try_from(read_u8(&mut remainder)?)?;
                     let val = match field_type {
                         TypeCode::String => IgniteValue::String(read_string(&mut remainder)?),
+                        TypeCode::Long => IgniteValue::Long(read_i64(&mut remainder)?),
                         TypeCode::Int => IgniteValue::Int(read_i32(&mut remainder)?),
+                        TypeCode::Short => IgniteValue::Short(read_i16(&mut remainder)?),
+                        TypeCode::Bool => IgniteValue::Bool(read_bool(&mut remainder)?),
                         TypeCode::Timestamp => {
                             let big = read_i64(&mut remainder)?;
                             let little = read_i32(&mut remainder)?;
@@ -436,6 +446,7 @@ impl ComplexObjectSchema {
                 "java.lang.String" => IgniteType::String,
                 "java.sql.Timestamp" => IgniteType::Timestamp,
                 "java.lang.Integer" => IgniteType::Int,
+                "java.lang.Boolean" => IgniteType::Bool,
                 "java.math.BigDecimal" => IgniteType::Decimal(f.precision, f.scale),
                 _ => Err(IgniteError::from(
                     format!("Unknown field type: {}", f.type_name).as_str(),
