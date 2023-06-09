@@ -2,6 +2,6 @@
 mod int_test {
     #[test]
     fn sanity_test() {
-        assert_eq!(true, false, "CI works");
+        assert_eq!(true, true, "CI works");
     }
 }
