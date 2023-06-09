@@ -25,10 +25,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt upgrade
-          sudo apt install openjdk-8-jdk wget
-          which java
+          sudo apt update -qq
+          sudo apt install -qq openjdk-8-jre openjdk-8-jdk wget maven
           wget -q https://repo1.maven.org/maven2/org/apache/ignite/ignite-core/2.15.0/ignite-core-2.15.0.jar
           wget -q https://repo.maven.apache.org/maven2/sqlline/sqlline/1.12.0/sqlline-1.12.0-jar-with-dependencies.jar
           java -cp "./*" sqlline.SqlLine -d org.apache.ignite.IgniteJdbcThinDriver -u jdbc:ignite:thin://127.0.0.1 -n ignite -p ignite -e 'select 1'
