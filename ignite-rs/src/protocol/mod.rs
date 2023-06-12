@@ -7,6 +7,7 @@ use crate::{Enum, ReadableType};
 use std::convert::TryFrom;
 
 pub(crate) mod cache_config;
+pub mod complex_obj;
 pub(crate) mod data_types;
 
 pub const FLAG_USER_TYPE: u16 = 0x0001;
@@ -89,6 +90,18 @@ impl TryFrom<u8> for TypeCode {
 pub(crate) enum Flag {
     Success,
     Failure { err_msg: String },
+}
+
+fn read_object(reader: &mut impl Read) -> IgniteResult<Option<()>> {
+    let flag = read_u8(reader)?;
+    let code = TypeCode::try_from(flag);
+    let code = code?;
+    match code {
+        TypeCode::Null => Ok(Some(())),
+        _ => Err(IgniteError::from(
+            format!("Cannot read TypeCode {}", flag).as_str(),
+        )),
+    }
 }
 
 /// Reads data objects that are wrapped in the WrappedData(type code = 27)
