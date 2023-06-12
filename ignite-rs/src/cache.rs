@@ -258,6 +258,8 @@ pub struct QueryField {
     pub(crate) type_name: String,
     pub(crate) key_field: bool,
     pub(crate) not_null_constraint: bool,
+    pub(crate) precision: i32,
+    pub(crate) scale: i32,
 }
 
 #[derive(Clone, Debug)]
