@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod int_test {
-    use ignite_rs::protocol::complex_obj::{ComplexObjectSchema, IgniteField, IgniteType};
+    use ignite_rs::protocol::complex_obj::{
+        ComplexObject, ComplexObjectSchema, IgniteField, IgniteType, IgniteValue,
+    };
     use ignite_rs::{new_client, ClientConfig, Ignite};
+    use std::sync::Arc;
 
     #[test]
     fn sanity_test() {
@@ -27,8 +30,6 @@ mod int_test {
         let entities = cfg.query_entities.unwrap();
 
         assert_eq!(entities.len(), 1);
-
-        let entity = entities.last().unwrap();
 
         let cfg = ignite.get_cache_config(table_name).unwrap();
         let entity = cfg.query_entities.unwrap().last().unwrap().clone();
@@ -81,5 +82,43 @@ mod int_test {
                 ]
             }
         );
+    }
+
+    #[test]
+    fn should_read_data() {
+        let config = ClientConfig::new("localhost:10800");
+        let mut ignite = new_client(config).unwrap();
+        let table_name = "SQL_PUBLIC_RAINBOW";
+
+        // read a row
+        let cache = ignite
+            .get_or_create_cache::<ComplexObject, ComplexObject>(table_name)
+            .unwrap();
+        let actual = cache.query_scan(100).unwrap();
+        let expected = vec![(
+            Some(ComplexObject {
+                schema: Arc::new(ComplexObjectSchema {
+                    type_name: "".to_string(),
+                    fields: vec![],
+                }),
+                values: vec![IgniteValue::Long(1)],
+            }),
+            Some(ComplexObject {
+                schema: Arc::new(ComplexObjectSchema {
+                    type_name: "".to_string(),
+                    fields: vec![],
+                }),
+                values: vec![
+                    IgniteValue::Bool(true),
+                    IgniteValue::Decimal(1, vec![20]),
+                    IgniteValue::Int(3),
+                    IgniteValue::Short(4),
+                    IgniteValue::String("c".to_string()),
+                    IgniteValue::String("varchar".to_string()),
+                    IgniteValue::Timestamp(1098203034000, 0),
+                ],
+            }),
+        )];
+        assert_eq!(actual, expected);
     }
 }
