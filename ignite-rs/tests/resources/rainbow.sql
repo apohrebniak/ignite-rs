@@ -17,3 +17,6 @@ create table rainbow (
 --      bin BINARY, -- byte[] -- TODO: add support for this type
      primary key (big)
 );
+
+insert into rainbow (big, bool, dec, int, small, char, var, ts) values
+    (1, true, 2.0, 3, 4, 'c', 'varchar', TIMESTAMP '2004-10-19 10:23:54');

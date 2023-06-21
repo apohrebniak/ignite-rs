@@ -12,6 +12,7 @@ pub(crate) mod data_types;
 
 pub const FLAG_USER_TYPE: u16 = 0x0001;
 pub const FLAG_HAS_SCHEMA: u16 = 0x0002;
+pub const HAS_RAW_DATA: u16 = 0x0004;
 pub const FLAG_COMPACT_FOOTER: u16 = 0x0020;
 pub const FLAG_OFFSET_ONE_BYTE: u16 = 0x0008;
 pub const FLAG_OFFSET_TWO_BYTES: u16 = 0x0010;
@@ -20,9 +21,8 @@ pub const COMPLEX_OBJ_HEADER_LEN: i32 = 24;
 
 /// All Data types described in Binary Protocol
 /// https://apacheignite.readme.io/docs/binary-client-protocol-data-format
-#[derive(PartialOrd, PartialEq)]
+#[derive(PartialOrd, PartialEq, Debug)]
 pub enum TypeCode {
-    // primitives
     Byte = 1,
     Short = 2,
     Int = 3,
@@ -31,10 +31,7 @@ pub enum TypeCode {
     Double = 6,
     Char = 7,
     Bool = 8,
-    // standard objects
     String = 9,
-    Enum = 28,
-    // arrays of primitives
     ArrByte = 12,
     ArrShort = 13,
     ArrInt = 14,
@@ -43,12 +40,15 @@ pub enum TypeCode {
     ArrDouble = 17,
     ArrChar = 18,
     ArrBool = 19,
-    // object collections
     ArrObj = 23,
     Collection = 24,
-    ComplexObj = 103,
-    Null = 101,
+    Decimal = 30,
+    Timestamp = 33,
     WrappedData = 27,
+    Enum = 28,
+    TimestampArray = 34,
+    Null = 101,
+    ComplexObj = 103,
 }
 
 impl TryFrom<u8> for TypeCode {
@@ -75,6 +75,8 @@ impl TryFrom<u8> for TypeCode {
             18 => Ok(TypeCode::ArrChar),
             19 => Ok(TypeCode::ArrBool),
             23 => Ok(TypeCode::ArrObj),
+            30 => Ok(TypeCode::Decimal),
+            33 => Ok(TypeCode::Timestamp),
             24 => Ok(TypeCode::Collection),
             27 => Ok(TypeCode::WrappedData),
             103 => Ok(TypeCode::ComplexObj),
@@ -319,5 +321,10 @@ pub fn read_enum(reader: &mut impl Read) -> io::Result<Enum> {
 pub fn write_enum(writer: &mut dyn Write, val: Enum) -> io::Result<()> {
     write_i32(writer, val.type_id)?;
     write_i32(writer, val.ordinal)?;
+    Ok(())
+}
+
+pub fn write_null(writer: &mut dyn Write) -> io::Result<()> {
+    write_u8(writer, TypeCode::Null as u8)?;
     Ok(())
 }
