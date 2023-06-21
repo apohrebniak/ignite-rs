@@ -115,7 +115,7 @@ mod int_test {
                     IgniteValue::Short(4),
                     IgniteValue::String("c".to_string()),
                     IgniteValue::String("varchar".to_string()),
-                    IgniteValue::Timestamp(1098203034000, 0),
+                    IgniteValue::Timestamp(1687350896000, 0),
                 ],
             }),
         )];
