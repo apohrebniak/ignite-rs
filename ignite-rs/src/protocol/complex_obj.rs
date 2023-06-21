@@ -306,21 +306,19 @@ mod tests {
     use crate::protocol::complex_obj::ComplexObject;
     use std::convert::TryInto;
 
-    #[ignore]
     #[test]
     fn test_round_trip() {
-        let type_name = "SQL_PUBLIC_BLOCKS_fd73408e_8a2c_4725_b165_bb4bc11ccad3";
         let expected_bytes = hex_literal::hex!(
             "67" // type
             "01" // version
-            "33 00" // Flags for compat footer, two byte offset?, has schema, user type
-            "10 9D 57 A1" // Hash of type name (type_id)
+            "03 00" // flags for has schema, user type
+            "34 59 48 16" // Hash of type name (type_id)
             "BA 27 D2 B2" // Hash of fields slice (hash_code)
-            "3F 01 00 00" // total size including header
+            "7B 01 00 00" // total size including header
             "C0 40 3B B5" // hash of field names (schema_id)
             "2B 01 00 00" // offset to field indexes
             "09 42 00 00 00 30 78 35 62 35 38 36 37 35 37 63 33 36 65 62 34 63 39 34 66 36 39 30 31 35 66 33 63 62 36 64 33 64 35 62 35 31 63 36 64 62 61 63 65 36 64 33 37 63 62 66 33 34 64 33 36 37 62 30 31 37 31 63 39 34 61 09 13 00 00 00 32 30 32 32 2D 30 31 2D 30 31 20 30 30 3A 30 30 3A 32 30 09 2A 00 00 00 30 78 45 41 36 37 34 66 64 44 65 37 31 34 66 64 39 37 39 64 65 33 45 64 46 30 46 35 36 41 41 39 37 31 36 42 38 39 38 65 63 38 09 42 00 00 00 30 78 33 32 61 65 64 30 63 66 33 31 36 64 31 37 66 30 64 37 63 39 61 62 65 63 63 62 39 38 31 31 37 32 34 61 61 35 38 63 30 39 63 65 35 33 31 66 36 31 66 33 38 36 35 37 38 31 63 38 33 65 32 33 63 32 09 15 00 00 00 32 2E 33 32 30 35 31 33 31 31 30 36 31 37 39 39 31 65 2B 31 38 03 74 0E 02 00 03 47 F7 C9 01 03 E5 05 CA 01 09 0B 00 00 00 36 31 35 38 34 33 34 33 37 32 39 03 DF 01 00 00"
-            "18 00 5F 00 77 00 A6 00 ED 00 07 01 0C 01 11 01 16 01 26 01" // offsets to fields
+            "80 85 A9 4C 18 00 00 00 D1 6B B5 43 5F 00 00 00 7F 66 31 06 77 00 00 00 83 4B 7D 3C A6 00 00 00 2F 4F 4F C8 ED 00 00 00 7E 20 86 06 07 01 00 00 63 75 84 A0 0C 01 00 00 D5 F6 86 6F 11 01 00 00 90 98 68 68 16 01 00 00 6E 68 A6 AB 26 01 00 00" // schema
         );
         let schema = ComplexObjectSchema {
             type_name: "VT.PUBLIC.BLOCKS-3178274329684762144".to_string(),
