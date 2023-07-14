@@ -64,6 +64,10 @@ mod int_test {
                         r#type: IgniteType::Int
                     },
                     IgniteField {
+                        name: "NULL_INT".to_string(),
+                        r#type: IgniteType::Int
+                    },
+                    IgniteField {
                         name: "SMALL".to_string(),
                         r#type: IgniteType::Short
                     },
@@ -112,6 +116,7 @@ mod int_test {
                     IgniteValue::Bool(true),
                     IgniteValue::Decimal(1, vec![20]),
                     IgniteValue::Int(3),
+                    IgniteValue::Null,
                     IgniteValue::Short(4),
                     IgniteValue::String("c".to_string()),
                     IgniteValue::String("varchar".to_string()),

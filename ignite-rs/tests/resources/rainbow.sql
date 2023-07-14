@@ -6,6 +6,7 @@ create table rainbow (
      dec DECIMAL, -- java.math.BigDecimal
 --      double DOUBLE, -- java.lang.Double -- TODO: add support for this type
      int INT, -- java.lang.Integer
+     null_int INT, -- java.lang.Integer
 --      real REAL, -- java.lang.Float -- TODO: add support for this type
      small SMALLINT, -- java.lang.Short
 --      tiny TINYINT, -- java.lang.Byte -- TODO: add support for this type
@@ -18,5 +19,5 @@ create table rainbow (
      primary key (big)
 );
 
-insert into rainbow (big, bool, dec, int, small, char, var, ts) values
-    (1, true, 2.0, 3, 4, 'c', 'varchar', timestamp '2023-06-21 12:34:56 UTC');
+insert into rainbow (big, bool, dec, int, null_int, small, char, var, ts) values
+    (1, true, 2.0, 3, null, 4, 'c', 'varchar', timestamp '2023-06-21 12:34:56 UTC');
