@@ -2,7 +2,7 @@ use crate::cache::{QueryEntity, QueryField};
 use crate::error::{IgniteError, IgniteResult};
 use crate::protocol::{
     read_bool, read_i16, read_i32, read_i64, read_string, read_u16, read_u8, write_i16, write_i32,
-    write_i64, write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN,
+    write_i64, write_null, write_string, write_u16, write_u8, TypeCode, COMPLEX_OBJ_HEADER_LEN,
     FLAG_COMPACT_FOOTER, FLAG_HAS_SCHEMA, FLAG_OFFSET_ONE_BYTE, FLAG_OFFSET_TWO_BYTES,
     FLAG_USER_TYPE, HAS_RAW_DATA,
 };
@@ -22,6 +22,7 @@ pub enum IgniteValue {
     Bool(bool),
     Timestamp(i64, i32), // milliseconds since 1 Jan 1970 UTC, Nanosecond fraction of a millisecond.
     Decimal(i32, Vec<u8>), // scale, big int value in bytes
+    Null,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -33,6 +34,7 @@ pub enum IgniteType {
     Bool,
     Timestamp,
     Decimal(i32, i32), // precision, scale
+    Null,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -96,6 +98,9 @@ impl ComplexObject {
                     write_i32(&mut values, *scale)?;
                     write_i32(&mut values, data.len() as i32)?;
                     values.write_all(data)?;
+                }
+                IgniteValue::Null => {
+                    write_null(&mut values)?;
                 }
             }
         }
@@ -216,6 +221,7 @@ impl ReadableType for ComplexObject {
                             remainder.read_exact(&mut buf)?;
                             IgniteValue::Decimal(scale, buf)
                         }
+                        TypeCode::Null => IgniteValue::Null,
                         _ => {
                             let msg = format!("Unknown type: {:?}", field_type);
                             Err(IgniteError::from(msg.as_str()))?
